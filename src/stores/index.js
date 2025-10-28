@@ -1,7 +1,8 @@
 // src/stores/index.js
 import { defineStore } from 'pinia'
-import api from '../services/api' // axios.create({ baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001/api' })
+import api from '../services/api'
 
+// BroadcastChannel para sincronización entre pestañas
 const BC = typeof window !== 'undefined' && 'BroadcastChannel' in window
   ? new BroadcastChannel('palco-sync')
   : null
@@ -24,25 +25,30 @@ export const useSeatsStore = defineStore('seats', {
     seatHolder: (state) => (code) =>
       state.people.find(p => p.seat === code) || null,
     presentList: (state) =>
-      state.people.filter(p => p.present)
-                  .sort((a,b)=> (a.presentAt||'').localeCompare(b.presentAt||'')),
+      state.people
+        .filter(p => p.present)
+        .sort((a, b) => (a.presentAt || '').localeCompare(b.presentAt || '')),
   },
 
   actions: {
     _buildSeats(rows, cols) {
-      this.seats = rows.map(r => Array.from({ length: cols }, (_, i) => `${r}${i+1}`))
+      this.seats = rows.map(r =>
+        Array.from({ length: cols }, (_, i) => `${r}${i + 1}`)
+      )
     },
 
     async ensureLoaded() {
       if (this._loaded || this.loading) return
       this.loading = true
       try {
-        // si tenés endpoint /config, podés traerlo acá
+        // Si tenés endpoint /config, podés traerlo acá
         this._buildSeats(this.config.rows, this.config.cols)
         const { data } = await api.get('/people')
         this.people = Array.isArray(data) ? data : []
         this._loaded = true
-      } finally { this.loading = false }
+      } finally {
+        this.loading = false
+      }
     },
 
     async refresh() {
@@ -54,7 +60,7 @@ export const useSeatsStore = defineStore('seats', {
     async createPerson(payload) {
       // payload: {name, doc?, org?, cargo?, seat?}
       const { data } = await api.post('/people', payload)
-      this.people.unshift(data)                 // reactivo
+      this.people.unshift(data)
       this._notify()
       return data
     },
@@ -62,7 +68,7 @@ export const useSeatsStore = defineStore('seats', {
     async updatePerson(id, patch) {
       const { data } = await api.put(`/people/${id}`, patch)
       const idx = this.people.findIndex(p => p.id === id)
-      if (idx !== -1) this.people[idx] = { ...data } // reemplazo in-place => reactivo
+      if (idx !== -1) this.people[idx] = { ...data }
       this._notify()
       return data
     },
@@ -93,34 +99,34 @@ export const useSeatsStore = defineStore('seats', {
 
     // ------- Utilidades -------
     findSeatByName(name) {
-      const q = String(name||'').trim().toLowerCase()
+      const q = String(name || '').trim().toLowerCase()
       const p = this.people.find(x => x.name.toLowerCase() === q)
       return p?.seat || null
     },
 
-    // Broadcast a otras pestañas y a otros componentes
+    // Broadcast a otras pestañas y componentes
     _notify() {
       // fuerza notificación de cambio (por si algún watcher espera referencia)
       this.people = [...this.people]
       if (BC) BC.postMessage({ type: 'people.changed' })
     },
 
-    // Polling opcional para multi-operador (desactivar si usás sockets)
+    // Polling opcional para multi-operador
     autoRefresh(intervalMs = 8000) {
       let t = setInterval(async () => {
         try { await this.refresh() } catch { /* noop */ }
       }, intervalMs)
       return () => clearInterval(t)
     },
-  }
+  },
 })
 
-// escuchar broadcast para sincronizar en vivo entre pestañas
+// Escucha de broadcast entre pestañas
 if (BC) {
   BC.onmessage = (e) => {
     if (e?.data?.type === 'people.changed') {
       const store = useSeatsStore()
-      store.refresh().catch(()=>{})
+      store.refresh().catch(() => {})
     }
   }
 }
