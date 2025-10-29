@@ -1,30 +1,48 @@
+// =========================
+// main.js (copy-paste final)
+// =========================
+
 // === Cache-buster / actualización forzada del frontend ===
 if (import.meta.env.PROD) {
-  const version = import.meta.env.VITE_APP_VERSION || Date.now()
-  const stored = localStorage.getItem('app-version')
+  (async () => {
+    try {
+      const version = String(import.meta.env.VITE_APP_VERSION || Date.now())
+      const stored = localStorage.getItem('app-version')
+      const alreadyReloaded = sessionStorage.getItem('app-reloaded-on-version')
 
-  // 🔁 Si cambió la versión, limpia caché y recarga
-  if (stored !== String(version)) {
-    console.log('[Frontend] Nueva versión detectada → forzando actualización')
-    localStorage.setItem('app-version', String(version))
+      // Si cambió la versión y aún no recargamos en esta sesión
+      if (stored !== version && alreadyReloaded !== version) {
+        console.log('[Frontend] Nueva versión detectada → limpiando caché y actualizando…')
+        localStorage.setItem('app-version', version)
+        sessionStorage.setItem('app-reloaded-on-version', version)
 
-    // Limpia cachés de service workers / Vite
-    if ('caches' in window) {
-      caches.keys().then(keys => {
-        for (const key of keys) caches.delete(key)
-      })
+        // 1) Limpiar cachés (Vite/HTTP)
+        if ('caches' in window) {
+          try {
+            const keys = await caches.keys()
+            await Promise.all(keys.map(k => caches.delete(k)))
+          } catch (e) {
+            console.warn('[Frontend] No se pudo limpiar caches:', e)
+          }
+        }
+
+        // 2) Desregistrar Service Workers (si hay)
+        if ('serviceWorker' in navigator) {
+          try {
+            const regs = await navigator.serviceWorker.getRegistrations()
+            await Promise.all(regs.map(r => r.unregister()))
+          } catch (e) {
+            console.warn('[Frontend] No se pudo desregistrar SW:', e)
+          }
+        }
+
+        // 3) Recargar (sin true, ya es ignorado por navegadores modernos)
+        window.location.reload()
+      }
+    } catch (err) {
+      console.warn('[Frontend] Cache-buster falló (continuando app):', err)
     }
-
-    // Limpia Service Worker si existiera
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(regs => {
-        regs.forEach(r => r.unregister())
-      })
-    }
-
-    // Recarga total
-    window.location.reload(true)
-  }
+  })()
 }
 
 import { createApp } from 'vue'
@@ -33,8 +51,11 @@ import { createPinia } from 'pinia'
 import { router } from './router'
 import { vuetify } from './plugins/vuetify'
 
-// 🟡 Importar la fuente de iconos MDI (necesario para ver íconos y hamburguesa)
+// 🟡 Iconos MDI (hamburguesa, etc.)
 import '@mdi/font/css/materialdesignicons.css'
+
+// 🎨 Estilos globales de contraste (cards, menús, tablas, etc.)
+import './styles/app.css'
 
 createApp(App)
   .use(createPinia())

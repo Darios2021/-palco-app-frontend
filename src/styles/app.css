@@ -1,0 +1,56 @@
+/* ===== Cartas y sheets más “presentes” ===== */
+.card-elevated {
+  background: rgba(14, 18, 48, 0.92); /* surface translúcido */
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(122, 140, 186, 0.18); /* borde sutil frío */
+}
+
+.sheet-contrast {
+  background: rgba(14, 18, 48, 0.96);
+  border: 1px solid rgba(122, 140, 186, 0.12);
+}
+
+/* ===== Campos (TextField/Select/Autocomplete) ===== */
+.field-contrast-dark .v-field {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(122, 140, 186, 0.22) !important;
+  border-radius: 14px !important;
+}
+
+.field-contrast-dark .v-label,
+.field-contrast-dark .v-field__input {
+  color: rgba(234, 240, 255, 0.92) !important;
+}
+
+/* ===== Menús / desplegables ===== */
+.menu-pop,
+.v-overlay__content .v-list,
+.v-overlay__content .v-sheet {
+  background: #0f1434 !important;
+  border: 1px solid rgba(122, 140, 186, 0.24) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* ===== Diálogos ===== */
+.dialog-contrast {
+  background: #0f1434 !important;
+  border: 1px solid rgba(122, 140, 186, 0.24) !important;
+}
+
+/* ===== Listas ===== */
+.list-contrast .v-list-item {
+  border-radius: 10px;
+}
+.list-contrast .v-list-item:hover {
+  background: rgba(255, 217, 81, 0.12) !important;
+}
+
+/* ===== DataTables ===== */
+.datatable-contrast .v-data-table__thead th {
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: #eaf0ff !important;
+}
+.datatable-contrast .v-data-table__tr:hover > td {
+  background: rgba(255, 217, 81, 0.06) !important;
+}
