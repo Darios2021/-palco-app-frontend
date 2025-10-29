@@ -33,6 +33,9 @@ import { createPinia } from 'pinia'
 import { router } from './router'
 import { vuetify } from './plugins/vuetify'
 
+// 🟡 Importar la fuente de iconos MDI (necesario para ver íconos y hamburguesa)
+import '@mdi/font/css/materialdesignicons.css'
+
 createApp(App)
   .use(createPinia())
   .use(router)

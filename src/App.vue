@@ -2,12 +2,13 @@
 <template>
   <v-app>
     <!-- ========= NAV DRAWER ========= -->
+    <!-- Drawer y AppBar usan el mismo color primary (#0b0d28) -->
     <v-navigation-drawer
       v-model="drawer"
       :rail="isDesktop"
       :temporary="!isDesktop"
-      color="primary-darken-1"
-      class="text-white"
+      color="primary"
+      class="nav text-yellow"
       width="260"
     >
       <v-list density="compact" nav>
@@ -25,7 +26,7 @@
     </v-navigation-drawer>
 
     <!-- ========= APP BAR ========= -->
-    <v-app-bar color="primary" density="comfortable">
+    <v-app-bar color="primary" density="comfortable" class="appbar text-yellow">
       <!-- En mobile: botón para abrir/cerrar el drawer -->
       <v-app-bar-nav-icon class="mr-1" @click="drawer = !drawer" />
 
@@ -40,7 +41,7 @@
           :key="item.to"
           :to="item.to"
           variant="text"
-          class="mx-1 text-white text-uppercase"
+          class="mx-1 text-yellow text-uppercase"
           :class="{ 'btn-active': isActive(item.to) }"
         >
           {{ item.text }}
@@ -54,7 +55,7 @@
     </v-main>
 
     <!-- ========= FOOTER ========= -->
-    <v-footer app color="primary" class="justify-center text-white">
+    <v-footer app color="primary" class="justify-center text-yellow">
       <small>© {{ year }} · Sistema de Control de Asistencia</small>
     </v-footer>
   </v-app>
@@ -75,21 +76,13 @@ const items = [
 ]
 
 const route = useRoute()
-const isActive = (to) => {
-  // activo si coincide exactamente o es prefijo (para subrutas)
-  if (to === '/') return route.path === '/'
-  return route.path.startsWith(to)
-}
+const isActive = (to) => (to === '/' ? route.path === '/' : route.path.startsWith(to))
 
 /* -------- Drawer responsivo -------- */
 const { mdAndUp } = useDisplay()
 const isDesktop = computed(() => mdAndUp.value)
 const drawer = ref(false)
-
-// Auto: en desktop lo mantenemos abierto en rail, en mobile lo cerramos
-watch(isDesktop, (v) => {
-  drawer.value = v ? true : false
-})
+watch(isDesktop, (v) => { drawer.value = v })
 
 /* -------- Store / autoRefresh -------- */
 const store = useSeatsStore()
@@ -106,27 +99,52 @@ const year = new Date().getFullYear()
 </script>
 
 <style scoped>
-.bg-surface {
-  background-color: #f6f7fb;
-  min-height: 100vh;
+/* ===== Drawer: activo y hover bien legibles ===== */
+.nav {
+  border-right: 1px solid rgba(255, 217, 81, 0.18);
 }
 
-/* Estado activo en botones del App Bar */
-.btn-active {
-  background: rgba(255, 255, 255, 0.18);
-  backdrop-filter: saturate(180%) blur(2px);
-  border-radius: 8px;
+/* Iconos y títulos por defecto en amarillo */
+.nav :deep(.v-icon),
+.nav :deep(.v-list-item-title) {
+  color: #ffd951 !important;
+  opacity: 1 !important;
 }
 
-/* Estado activo en ítems del Drawer */
-.drawer-active {
-  --v-theme-overlay-multiplier: 0; /* evita overlays fuertes */
-  background: rgba(255, 255, 255, 0.12) !important;
-  border-radius: 10px;
+/* Clase de activo que ya usás: active-class="drawer-active" */
+.drawer-active,
+.nav :deep(.v-list-item--active) {
+  background: #ffd951 !important;     /* 🟡 amarillo sólido */
+  color: #0b0d28 !important;           /* 🔵 texto/ícono azul */
+  border-radius: 12px;
+  /* apagar overlays/atenuaciones de Vuetify */
+  --v-theme-overlay-multiplier: 0;
+  --v-activated-opacity: 1;
 }
 
-/* Tipografía del título un pelín más marcada */
-.v-toolbar-title {
-  letter-spacing: .3px;
+/* Apagar la capa de overlay del item (la que lo “ensucia”) */
+.nav :deep(.v-list-item--active .v-list-item__overlay) {
+  opacity: 0 !important;
+  background: transparent !important;
+}
+
+/* Colorear icono y título cuando está activo */
+.nav :deep(.v-list-item--active .v-icon),
+.nav :deep(.v-list-item--active .v-list-item-title) {
+  color: #0b0d28 !important;
+  opacity: 1 !important;
+}
+
+/* Hover legible (amarillo translúcido, sin barro) */
+.nav :deep(.v-list-item:hover) {
+  background: rgba(255, 217, 81, 0.16) !important;
+  border-radius: 12px;
+}
+
+/* Iconos siempre visibles incluso en hover o estados intermedios */
+.nav :deep(.v-list-item:hover .v-icon),
+.nav :deep(.v-list-item .v-icon) {
+  opacity: 1 !important;
 }
 </style>
+
