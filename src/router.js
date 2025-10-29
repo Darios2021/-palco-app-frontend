@@ -8,10 +8,11 @@ const routes = [
   { path: '/', name: 'home', component: HomeView },
   { path: '/checkin', name: 'checkin', component: CheckInView },
   { path: '/asientos', name: 'asientos', component: SeatsView },
-  { path: '/personas', name: 'personas', component: PeopleView }
+  { path: '/personas', name: 'personas', component: PeopleView },
 ]
 
 export const router = createRouter({
-  history: createWebHistory(),
-  routes
+  // 🟢 Esto es clave: asegura rutas correctas al servir desde dominio o subruta
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes,
 })
