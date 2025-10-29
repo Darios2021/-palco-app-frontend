@@ -3,7 +3,7 @@
   <v-card rounded="xl" class="mb-6 card-contrast">
     <v-card-title class="d-flex align-center flex-wrap gap-2 title-contrast">
       <v-icon class="mr-2">mdi-seat</v-icon>
-      <span class="text-truncate">Mapa de Asientos</span>
+      <span class="text-truncate">Mapa de Asientosss</span>
       <v-spacer />
       <div class="legend d-flex align-center gap-2">
         <v-chip color="success" label size="small" class="chip-strong">Presente</v-chip>
