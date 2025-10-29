@@ -1,14 +1,14 @@
 <template>
   <!-- === MAPA === -->
-  <v-card rounded="xl" class="mb-6">
-    <v-card-title class="d-flex align-center flex-wrap gap-2">
+  <v-card rounded="xl" class="mb-6 card-contrast">
+    <v-card-title class="d-flex align-center flex-wrap gap-2 title-contrast">
       <v-icon class="mr-2">mdi-seat</v-icon>
       <span class="text-truncate">Mapa de Asientos</span>
       <v-spacer />
       <div class="legend d-flex align-center gap-2">
-        <v-chip color="success" label size="small">Presente</v-chip>
-        <v-chip color="warning" label size="small">Asignado</v-chip>
-        <v-chip variant="outlined" label size="small">Libre</v-chip>
+        <v-chip color="success" label size="small" class="chip-strong">Presente</v-chip>
+        <v-chip color="warning" label size="small" class="chip-strong">Asignado</v-chip>
+        <v-chip variant="outlined" label size="small" class="chip-outline">Libre</v-chip>
       </div>
     </v-card-title>
 
@@ -38,11 +38,11 @@
   </v-card>
 
   <!-- === TABLA: PRESENTES EN EL PALCO === -->
-  <v-card rounded="xl" elevation="2">
-    <v-card-title class="d-flex align-center flex-wrap gap-2">
+  <v-card rounded="xl" elevation="2" class="card-contrast">
+    <v-card-title class="d-flex align-center flex-wrap gap-2 title-contrast">
       <v-icon class="mr-2">mdi-account-check</v-icon>
       <span class="text-truncate">Presentes en el palco</span>
-      <v-chip class="ml-1" color="success" label>{{ presentRows.length }}</v-chip>
+      <v-chip class="ml-1 chip-count" color="success" label>{{ presentRows.length }}</v-chip>
       <v-spacer />
       <div class="title-actions">
         <v-text-field
@@ -54,7 +54,7 @@
           density="comfortable"
           class="search-input"
         />
-        <v-btn variant="tonal" prepend-icon="mdi-file-delimited" @click="exportCSV">
+        <v-btn variant="tonal" prepend-icon="mdi-file-delimited" class="btn-tonal" @click="exportCSV">
           Exportar CSV
         </v-btn>
       </div>
@@ -73,7 +73,7 @@
       >
         <template #item.name="{ item }">
           <div class="d-flex align-center">
-            <v-avatar size="32" class="mr-3">
+            <v-avatar size="32" class="mr-3 avatar-contrast">
               <span class="avatar">{{ initials(item.name) }}</span>
             </v-avatar>
             <div class="font-weight-600 text-truncate">{{ item.name }}</div>
@@ -81,11 +81,11 @@
         </template>
 
         <template #item.seat="{ item }">
-          <v-chip color="success" size="small" label class="font-weight-600">{{ item.seat }}</v-chip>
+          <v-chip color="success" size="small" label class="font-weight-600 chip-table">{{ item.seat }}</v-chip>
         </template>
 
         <template #item.presentAt="{ item }">
-          <div class="d-flex align-center">
+          <div class="d-flex align-center text-dim">
             <v-icon size="16" class="mr-1">mdi-clock-outline</v-icon>
             <span class="font-mono">{{ formatDateTime(item.presentAt) }}</span>
           </div>
@@ -100,27 +100,27 @@
 
   <!-- === MODAL DETALLE DE ASIENTO === -->
   <v-dialog v-model="dialog" max-width="520">
-    <v-card rounded="xl">
-      <v-card-title class="d-flex align-center">
+    <v-card rounded="xl" class="card-contrast">
+      <v-card-title class="d-flex align-center title-contrast">
         <v-icon class="mr-2">mdi-seat</v-icon>
         Asiento {{ currentSeat }}
         <v-spacer />
-        <v-chip v-if="currentStatus === 'present'" size="small" color="success" label>Presente</v-chip>
-        <v-chip v-else-if="currentStatus === 'assigned'" size="small" color="warning" label>Asignado</v-chip>
-        <v-chip v-else size="small" variant="outlined" label>Libre</v-chip>
+        <v-chip v-if="currentStatus === 'present'" size="small" color="success" label class="chip-strong">Presente</v-chip>
+        <v-chip v-else-if="currentStatus === 'assigned'" size="small" color="warning" label class="chip-strong">Asignado</v-chip>
+        <v-chip v-else size="small" variant="outlined" label class="chip-outline">Libre</v-chip>
       </v-card-title>
 
-      <v-divider />
+      <v-divider class="divider-contrast" />
 
       <v-card-text class="py-5">
         <template v-if="holder">
           <div class="d-flex align-center">
-            <v-avatar size="40" class="mr-3">
+            <v-avatar size="40" class="mr-3 avatar-contrast">
               <span class="avatar">{{ initials(holder.name) }}</span>
             </v-avatar>
             <div>
               <div class="font-weight-bold">{{ holder.name }}</div>
-              <div class="text-medium-emphasis">
+              <div class="text-dim">
                 {{ [holder.org, holder.doc].filter(Boolean).join(' · ') || '—' }}
               </div>
             </div>
@@ -130,7 +130,7 @@
             v-if="holder.present"
             type="success"
             variant="tonal"
-            class="mt-4"
+            class="mt-4 alert-contrast"
             border="start"
             rounded="lg"
           >
@@ -141,7 +141,7 @@
             v-else
             type="warning"
             variant="tonal"
-            class="mt-4"
+            class="mt-4 alert-contrast"
             border="start"
             rounded="lg"
           >
@@ -150,7 +150,7 @@
         </template>
 
         <template v-else>
-          <v-alert variant="tonal" border="start" rounded="lg">
+          <v-alert variant="tonal" border="start" rounded="lg" class="alert-contrast">
             Este asiento está <b>libre</b>.
           </v-alert>
         </template>
@@ -158,7 +158,7 @@
 
       <v-card-actions class="px-4 pb-4">
         <v-spacer />
-        <v-btn variant="text" @click="dialog=false">Cerrar</v-btn>
+        <v-btn variant="text" class="btn-text" @click="dialog=false">Cerrar</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -255,72 +255,107 @@ function exportCSV () {
 </script>
 
 <style scoped>
-/* ===== Leyenda ===== */
-.legend { gap: 6px; }
+/* ===== Card & Titles con contraste ===== */
+.card-contrast {
+  background: #0e1230 !important;
+  border: 1px solid rgba(255, 217, 81, .14);
+  box-shadow: 0 6px 18px rgba(0,0,0,.25);
+}
+.title-contrast {
+  background: linear-gradient(180deg, rgba(255,217,81,.06), rgba(11,13,40,0));
+  border-bottom: 1px solid rgba(255,217,81,.10);
+}
+.divider-contrast { border-color: rgba(255,217,81,.10) !important; }
+.text-dim { color: rgba(234,240,255, .75); }
+
+/* Botones del título */
+.btn-tonal {
+  background: rgba(255,217,81,.12) !important;
+  color: #ffd951 !important;
+  border: 1px solid rgba(255,217,81,.24) !important;
+}
+
+/* Chips más legibles sobre oscuro */
+.chip-strong { font-weight: 700; color: #0b0d28 !important; }
+.chip-outline {
+  color: #eaf0ff !important;
+  border-color: rgba(234,240,255,.28) !important;
+}
+.chip-count {
+  font-weight: 800;
+  color: #eaf0ff !important;
+  background: #1b5e20 !important;
+}
+
+/* Avatar con borde para no perderse */
+.avatar-contrast {
+  background: rgba(255,217,81,.12);
+  border: 1px solid rgba(255,217,81,.18);
+  color: #ffd951;
+}
 
 /* ===== MAPA ===== */
+.legend { gap: 6px; }
+
 .grid-rows-wrap {
-  overflow-x: auto;           /* 👉 permite scroll horizontal en pantallas chicas */
+  overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: 6px;        /* espacio para el scrollbar en iOS/Android */
+  padding-bottom: 6px;
 }
 
 .grid-rows {
   display: flex;
-  flex-direction: column-reverse; /* 🔁 invierte el orden visual (A abajo) */
+  flex-direction: column-reverse; /* 🔁 A abajo */
   gap: 12px;
-  min-width: max(480px, 100%);    /* evita colapsar cuando hay muchas columnas */
+  min-width: max(560px, 100%);
 }
 
 .row {
   display: grid;
   grid-auto-flow: column;
-  grid-template-columns: 40px repeat(10, 64px); /* etiqueta + 10 asientos por fila (ajusta si usás más) */
+  grid-template-columns: 44px repeat(10, 68px);
   gap: 8px;
   align-items: center;
 }
 
-/* Etiqueta de fila pegajosa para que siempre se vea al scrollear */
+/* Etiqueta de fila con contraste */
 .row-label {
-  position: sticky;
-  left: 0;
-  z-index: 1;
-  text-align: center;
-  font-weight: 700;
-  background: rgba(255,255,255,.9);
-  backdrop-filter: blur(2px);
-  border-radius: 10px;
-  padding: 6px 0;
-  width: 40px;
+  position: sticky; left: 0; z-index: 1;
+  text-align: center; font-weight: 800;
+  color: #0b0d28;
+  background: #ffd951;
+  border: 1px solid rgba(255,217,81,.45);
+  box-shadow: 0 2px 6px rgba(0,0,0,.25);
+  border-radius: 10px; padding: 6px 0; width: 44px;
 }
 
 /* Botones de asiento */
 .seat {
-  min-width: 56px;
-  height: 36px;
-  border-radius: 18px;
-  font-weight: 600;
-  text-transform: none;
+  min-width: 58px; height: 36px; border-radius: 18px;
+  font-weight: 700; text-transform: none;
+  box-shadow: 0 1px 2px rgba(0,0,0,.25);
 }
-.seat.present  { background: #4caf50 !important; color: #fff; }
-.seat.assigned { background: #ffb300 !important; color: #000; }
-.seat.free     { background: #eeeeee !important; color: #333; }
-
-/* ===== MODAL ===== */
-.avatar { font-size: 14px; font-weight: 800; line-height: 40px; }
+.seat.present  { background: #4caf50 !important; color: #fff !important; }
+.seat.assigned { background: #ffb300 !important; color: #0b0d28 !important; }
+.seat.free     { background: #f3f5f9 !important; color: #0b0d28 !important; }
 
 /* ===== TABLA ===== */
-.table-wrap {
-  width: 100%;
-  overflow-x: auto;                /* 👉 si hay columnas extras en mobile */
-}
+.table-wrap { width: 100%; overflow-x: auto; }
 
 .present-table :deep(thead th) {
-  position: sticky;
-  top: 0;
-  background: #fff;
-  z-index: 2;
+  position: sticky; top: 0; z-index: 2;
+  background: #0e1230 !important;
+  color: #eaf0ff !important;
+  border-bottom: 1px solid rgba(255,217,81,.14) !important;
 }
+.present-table :deep(tbody tr:nth-child(odd)) {
+  background: rgba(255,217,81,.03);
+}
+.present-table :deep(td) {
+  border-bottom: 1px solid rgba(255,217,81,.06) !important;
+}
+.chip-table { box-shadow: 0 0 0 1px rgba(255,217,81,.18) inset; }
+
 .font-mono { font-variant-numeric: tabular-nums; }
 
 /* ===== Responsive ===== */
@@ -329,12 +364,13 @@ function exportCSV () {
 }
 @media (max-width: 600px) {
   .legend :deep(.v-chip) { height: 22px; font-size: 11px; }
-  .grid-rows { gap: 10px; min-width: max(420px, 100%); }
+  .grid-rows { gap: 10px; min-width: max(480px, 100%); }
   .row {
-    grid-template-columns: 32px repeat(10, 56px); /* asientos un poco más compactos */
+    grid-template-columns: 36px repeat(10, 60px);
     gap: 6px;
   }
-  .row-label { width: 32px; padding: 4px 0; }
-  .seat { min-width: 52px; height: 32px; border-radius: 16px; font-size: 0.9rem; }
+  .row-label { width: 36px; padding: 4px 0; }
+  .seat { min-width: 54px; height: 32px; border-radius: 16px; font-size: 0.9rem; }
 }
+.btn-text { color: #ffd951 !important; }
 </style>
