@@ -1,14 +1,8 @@
 <template>
   <v-container class="py-8" fluid>
     <v-row justify="center">
-      <v-col cols="12" lg="8">
-        <CheckInForm />
-      </v-col>
-    </v-row>
-
-    <v-row justify="center" class="mt-6">
-      <v-col cols="12" lg="8">
-        <SeatMap />
+      <v-col cols="12" md="10" lg="8">
+        <CheckInForm @checked-in="onCheckedIn" @error="onError" />
       </v-col>
     </v-row>
   </v-container>
@@ -16,5 +10,6 @@
 
 <script setup>
 import CheckInForm from '../components/CheckInForm.vue'
-import SeatMap from '../components/SeatMap.vue'
+function onCheckedIn () {}
+function onError () {}
 </script>
