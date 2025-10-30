@@ -1,19 +1,18 @@
 <!-- components/CheckInForm.vue -->
 <template>
   <v-card class="ck-wrap" rounded="2xl" elevation="2">
-    <!-- ===== HEADER ===== -->
+    <!-- HEADER -->
     <header class="ck-header">
       <div class="ck-h-left">
         <v-icon size="22" class="mr-2">mdi-account-search</v-icon>
         <span class="ck-title">Control de ingreso al palco</span>
       </div>
-      <!-- limpio: sin chips duplicados -->
     </header>
 
     <v-divider class="ck-divider" />
 
     <v-card-text class="ck-body">
-      <!-- ===== BUSCADOR + CTA PRESENTE ===== -->
+      <!-- BUSCADOR + CTA PRESENTE -->
       <v-form @submit.prevent="onSubmit" class="ck-form">
         <v-autocomplete
           v-model="selected"
@@ -39,7 +38,7 @@
           aria-label="Buscar persona para registrar asistencia"
           class="ck-search"
         >
-          <!-- ITEM EN LISTA -->
+          <!-- ITEM EN DROPDOWN -->
           <template #item="{ props, item }">
             <v-list-item v-bind="props" density="comfortable" class="ck-item">
               <template #prepend>
@@ -85,7 +84,7 @@
             </v-list-item>
           </template>
 
-          <!-- LO QUE SE VE ADENTRO DEL INPUT CUANDO YA ELEGISTE -->
+          <!-- LO QUE QUEDA DENTRO DEL INPUT -->
           <template #selection="{ item }">
             <div class="sel-wrap">
               <v-avatar :size="22" class="mr-2">
@@ -137,11 +136,8 @@
           </template>
         </v-tooltip>
 
-        <!-- CHIP YA REGISTRADO (REEMPLAZA EL BOTÓN) -->
-        <div
-          v-else
-          class="already-wrap"
-        >
+        <!-- CHIP YA PRESENTE -->
+        <div v-else class="already-wrap">
           <v-chip
             color="success"
             label
@@ -155,10 +151,9 @@
         </div>
       </v-form>
 
-      <!-- ===== PANEL DE DETALLE ===== -->
+      <!-- PANEL DETALLE -->
       <v-expand-transition>
         <v-sheet v-if="selected" class="cd-card" rounded="2xl">
-          <!-- HEAD -->
           <div class="cd-head">
             <div class="cd-ident">
               <v-avatar size="46" class="elevated">
@@ -177,14 +172,14 @@
             </div>
 
             <div class="cd-badges">
-              <!-- Estado general -->
+              <!-- Estado -->
               <v-chip
                 size="small"
                 :color="isAlreadyPresent ? 'success' : (selectedSeatCode ? 'warning' : '')"
                 :variant="!selectedSeatCode ? 'outlined' : 'flat'"
                 label
               >
-                {{ chipText }} <!-- Presente / Asignado / Sin asiento -->
+                {{ chipText }}
               </v-chip>
 
               <!-- Asiento -->
@@ -202,7 +197,6 @@
 
           <v-divider class="cd-divider" />
 
-          <!-- GRID CAMPOS -->
           <div class="cd-grid">
             <div class="cd-field">
               <v-icon size="16" class="mr-1 muted">mdi-card-account-details</v-icon>
@@ -233,9 +227,9 @@
             </div>
           </div>
 
-          <!-- ACCIONES DINÁMICAS -->
+          <!-- ACCIONES -->
           <div class="cd-actions">
-            <!-- ASIGNAR ASIENTO (NO TIENE ASIENTO) -->
+            <!-- ASIGNAR / CAMBIAR ASIENTO -->
             <v-btn
               v-if="!selectedSeatCode"
               variant="tonal"
@@ -247,7 +241,6 @@
               Asignar asiento
             </v-btn>
 
-            <!-- CAMBIAR ASIENTO (TIENE ASIENTO) -->
             <v-btn
               v-if="selectedSeatCode"
               variant="tonal"
@@ -259,7 +252,7 @@
               Cambiar asiento
             </v-btn>
 
-            <!-- LIBERAR ASIENTO (TIENE ASIENTO) -->
+            <!-- LIBERAR ASIENTO -->
             <v-btn
               v-if="selectedSeatCode"
               variant="tonal"
@@ -273,7 +266,7 @@
               Liberar asiento
             </v-btn>
 
-            <!-- QUITAR PRESENTE (SÓLO SI ESTÁ PRESENTE) -->
+            <!-- QUITAR PRESENTE -->
             <v-btn
               v-if="isAlreadyPresent"
               variant="tonal"
@@ -282,7 +275,7 @@
               class="cd-action"
               :disabled="unmarking"
               :loading="unmarking"
-              @click="onUnmarkPresent"
+              @click="onRemovePresenceLikeTable"
             >
               Quitar presente
             </v-btn>
@@ -290,7 +283,7 @@
         </v-sheet>
       </v-expand-transition>
 
-      <!-- ===== FEEDBACK CHECK-IN OK ===== -->
+      <!-- FEEDBACK CHECK-IN OK -->
       <v-expand-transition>
         <div
           v-if="showSuccess"
@@ -315,7 +308,7 @@
       </v-snackbar>
     </v-card-text>
 
-    <!-- ===== DIALOGO CONFIRMAR LIBERAR ASIENTO ===== -->
+    <!-- DIALOGO CONFIRMAR LIBERAR ASIENTO -->
     <v-dialog v-model="confirmRelease" max-width="420">
       <v-card rounded="xl">
         <v-card-title class="pt-4 pb-0">
@@ -343,7 +336,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useDisplay } from 'vuetify'
 import { useSeatsStore } from '../stores'
 
-/* Eventos al padre */
+/* ---- DEBUG MARK ---- */
+console.warn('[CheckInForm ACTIVE] montando componente CheckInForm.vue')
+
 const emit = defineEmits([
   'checked-in',
   'error',
@@ -356,30 +351,27 @@ const emit = defineEmits([
 const { smAndDown } = useDisplay()
 const store = useSeatsStore()
 
-/* Estado base */
-const loading = ref(false)
-const submitting = ref(false)
-const releasing = ref(false)
-const unmarking = ref(false) // 👈 nuevo: para "Quitar presente"
-const search = ref('')
-const selected = ref(null)
+/* estado UI local */
+const loading     = ref(false)
+const submitting  = ref(false)
+const releasing   = ref(false)
+const unmarking   = ref(false)
 
-/* Persona seleccionada */
+const search      = ref('')
+const selected    = ref(null)
+
 const selectedSeatCode = ref(null)
-const selectedSeatId = ref(null)
-const selectedPresent = ref(false)
-const selectedDoc = ref('')
-const selectedOrg = ref('')
+const selectedSeatId   = ref(null)
+const selectedPresent  = ref(false)
+const selectedDoc      = ref('')
+const selectedOrg      = ref('')
 
-/* Feedback UI */
 const showSuccess = ref(false)
-const lastSeat = ref(null)
-const snackbar = ref({ open: false, text: '' })
+const lastSeat    = ref(null)
+const snackbar    = ref({ open: false, text: '' })
 
-/* Diálogo liberar asiento */
 const confirmRelease = ref(false)
 
-/* Responsivo */
 const menuProps = computed(() => ({
   maxHeight: smAndDown.value ? 320 : 380,
   offset: smAndDown.value ? 6 : 8
@@ -395,29 +387,28 @@ onMounted(async () => {
   }
 })
 
-/* Helpers */
-const norm = (s = '') =>
-  s
+/* helpers */
+const norm = s =>
+  (s || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim()
 
-const initials = (name = '') =>
-  String(name)
+const initials = name =>
+  String(name || '')
     .trim()
     .split(/\s+/)
     .slice(0, 2)
     .map(x => x[0]?.toUpperCase() ?? '')
     .join('')
 
-/* Items para el autocomplete */
 const items = computed(() =>
   (store.people ?? []).map(p => ({
     title: p.name,
     value: p.id,
-    seatId: p.seatId ?? p.seat_id ?? null,
-    seatCode: p.seatCode ?? p.seat ?? null,
+    seatId:  p.seatId   ?? p.seat_id   ?? null,
+    seatCode:p.seatCode ?? p.seat      ?? p.seat_code ?? null,
     present: !!p.present,
     subtitle: [p.org, p.doc].filter(Boolean).join(' · ') || '—',
     doc: p.doc || '',
@@ -429,52 +420,98 @@ const items = computed(() =>
 const selectedId = computed(() => selected.value?.value ?? null)
 const isAlreadyPresent = computed(() => !!selectedPresent.value)
 
-/* chip de estado */
 const chipText = computed(() => {
   if (isAlreadyPresent.value) return 'Presente'
   if (selectedSeatCode.value) return 'Asignado'
   return 'Sin asiento'
 })
 
-/* filtro local */
 function filterFn (_title, _query, item) {
   const q = norm(search.value)
   if (!q) return true
   return item?.raw?._keywords?.includes(q)
 }
 
-/* al seleccionar una persona */
 function onSelected (obj) {
   selectedSeatCode.value = obj?.seatCode || null
-  selectedSeatId.value = obj?.seatId || null
-  selectedPresent.value = !!obj?.present
-  selectedDoc.value = obj?.doc || ''
-  selectedOrg.value = obj?.org || ''
-  showSuccess.value = false
-  snackbar.value.open = false
+  selectedSeatId.value   = obj?.seatId   || null
+  selectedPresent.value  = !!obj?.present
+  selectedDoc.value      = obj?.doc || ''
+  selectedOrg.value      = obj?.org || ''
+  showSuccess.value      = false
+  snackbar.value.open    = false
 }
 
-/* si limpio la búsqueda -> limpio todo */
 watch(search, v => {
   if (!v) {
-    selected.value = null
-    selectedSeatCode.value = null
-    selectedSeatId.value = null
-    selectedPresent.value = false
-    selectedDoc.value = ''
-    selectedOrg.value = ''
-    showSuccess.value = false
-    snackbar.value.open = false
+    resetSelection()
   }
 })
 
-/* marcar presente */
+function resetSelection () {
+  selected.value        = null
+  selectedSeatCode.value= null
+  selectedSeatId.value  = null
+  selectedPresent.value = false
+  selectedDoc.value     = ''
+  selectedOrg.value     = ''
+  showSuccess.value     = false
+  snackbar.value.open   = false
+}
+
+/* util store */
+async function tryCall (name, ...args) {
+  const fn = store?.[name]
+  if (typeof fn !== 'function') return undefined
+  try {
+    return await fn(...args)
+  } catch {
+    return undefined
+  }
+}
+
+async function refreshStore () {
+  await (
+    store.reload?.() ||
+    store.ensureLoaded?.() ||
+    Promise.resolve()
+  )
+}
+
+function syncFromPerson (p) {
+  selectedSeatCode.value = p.seatCode ?? p.seat ?? p.seat_code ?? null
+  selectedSeatId.value   = p.seatId   ?? p.seat_id ?? selectedSeatId.value ?? null
+  selectedPresent.value  = !!p.present
+  selectedDoc.value      = p.doc || selectedDoc.value
+  selectedOrg.value      = p.org || selectedOrg.value
+
+  selected.value = {
+    title: p.name,
+    value: p.id,
+    seatId: p.seatId ?? p.seat_id ?? null,
+    seatCode: p.seatCode ?? p.seat ?? p.seat_code ?? null,
+    present: p.present,
+    subtitle: [p.org, p.doc].filter(Boolean).join(' · ') || '—',
+    doc: p.doc,
+    org: p.org
+  }
+}
+
+function syncFromStoreById (idLike) {
+  const fresh = (store.people ?? []).find(p => p.id == idLike)
+  if (fresh) {
+    syncFromPerson(fresh)
+    return true
+  }
+  return false
+}
+
+/* acciones */
 async function onSubmit () {
   if (!selected.value) return
 
-  // anti doble marcado
   const personInStore = (store.people ?? []).find(
-    p => p.id === selectedId.value
+    p => p.id == selectedId.value
   )
   const already = selectedPresent.value || !!personInStore?.present
   if (already) {
@@ -485,10 +522,15 @@ async function onSubmit () {
   submitting.value = true
   try {
     const id = selectedId.value
-    const p = await store.checkInById?.(id)
+    const p =
+      await tryCall('checkInById', id) ??
+      await tryCall('setPresent', id, true) ??
+      await tryCall('updatePerson', id, { present: true })
 
     if (p) {
       syncFromPerson(p)
+    } else {
+      selectedPresent.value = true
     }
 
     lastSeat.value = selectedSeatCode.value || null
@@ -496,6 +538,9 @@ async function onSubmit () {
     snackbar.value = { open: true, text: 'Check-in confirmado ✅' }
 
     emit('checked-in', { person: p ?? selected.value })
+
+    await refreshStore()
+    syncFromStoreById(id)
   } catch (e) {
     snackbar.value = { open: true, text: 'No se pudo registrar' }
     emit('error', {
@@ -509,30 +554,16 @@ async function onSubmit () {
   }
 }
 
-/* helper: probar variantes de métodos del store */
-async function tryCall (name, ...args) {
-  const fn = store?.[name]
-  if (typeof fn !== 'function') return undefined
-  try {
-    return await fn(...args)
-  } catch (err) {
-    if (process?.env?.NODE_ENV !== 'production') {
-      console.warn(`[CheckInForm] ${name}() falló:`, err)
-    }
-    return undefined
-  }
-}
-
-/* liberar asiento */
 async function onReleaseSeat () {
   if (!selectedId.value || !selectedSeatCode.value) {
     confirmRelease.value = false
     return
   }
+
   releasing.value = true
   try {
     const personId = selectedId.value
-    const seatId = selectedSeatId.value
+    const seatId   = selectedSeatId.value
     const seatCode = selectedSeatCode.value
 
     const attempts = [
@@ -541,10 +572,10 @@ async function onReleaseSeat () {
       () => tryCall('unassignSeatById', personId),
       () => tryCall('releaseSeatByPersonId', personId),
       () => tryCall('releaseSeat', { personId, seatId, seatCode }),
-      () => tryCall('freeSeat', { personId, seatId, seatCode }),
-      () => tryCall('unassignSeat', { personId, seatId, seatCode }),
+      () => tryCall('freeSeat',    { personId, seatId, seatCode }),
+      () => tryCall('unassignSeat',{ personId, seatId, seatCode }),
       () => tryCall('assignSeat', personId, null),
-      () => tryCall('setSeat', personId, null),
+      () => tryCall('setSeat',    personId, null),
       () => (seatId ? tryCall('releaseSeatBySeatId', seatId) : undefined)
     ]
 
@@ -555,28 +586,15 @@ async function onReleaseSeat () {
       if (released !== undefined) break
     }
 
-    // actualizar UI local después de liberar
-    selectedSeatCode.value = null
-    selectedSeatId.value = null
-    if (released && typeof released.present === 'boolean') {
-      selectedPresent.value = released.present
+    if (released) {
+      syncFromPerson(released)
+    } else {
+      selectedSeatCode.value = null
+      selectedSeatId.value   = null
     }
 
-    // reflejar cambios en el seleccionado actual
-    selected.value = {
-      ...selected.value,
-      seatId: null,
-      seatCode: null,
-      present: selectedPresent.value,
-      subtitle:
-        [selectedOrg.value, selectedDoc.value]
-          .filter(Boolean)
-          .join(' · ') || '—'
-    }
-
-    await (store.reload?.() ||
-      store.ensureLoaded?.() ||
-      Promise.resolve())
+    await refreshStore()
+    syncFromStoreById(personId)
 
     snackbar.value = { open: true, text: 'Asiento liberado' }
 
@@ -599,45 +617,44 @@ async function onReleaseSeat () {
   }
 }
 
-/* quitar presente */
-async function onUnmarkPresent () {
+/* ESTA es la versión que debe comportarse igual que PeopleList.removePresence() */
+async function onRemovePresenceLikeTable () {
   if (!selectedId.value || !isAlreadyPresent.value) return
+
   unmarking.value = true
   try {
     const personId = selectedId.value
 
-    // probamos métodos posibles del store
-    const attempts = [
-      () => tryCall('uncheckInById', personId),
-      () => tryCall('checkoutById', personId),
-      () => tryCall('markNotPresentById', personId),
-      () => tryCall('setPresent', personId, false),
-      () => tryCall('togglePresent', { personId, present: false })
-    ]
+    // mismo set de intentos que en PeopleList.removePresence
+    await tryCall('setPresent', personId, false) ??
+    await tryCall('uncheckInById', personId) ??
+    await tryCall('clearPresenceById', personId) ??
+    await tryCall('updatePerson', personId, { present: false })
 
-    let updated
-    for (const run of attempts) {
-      // eslint-disable-next-line no-await-in-loop
-      updated = await run()
-      if (updated !== undefined) break
-    }
+    // refrescamos el store global igual que en la tabla
+    await refreshStore()
 
-    // si la API devolvió persona actualizada, la usamos
-    if (updated) {
-      syncFromPerson(updated)
-    } else {
-      // si no devolvió nada asumimos que lo desmarcó
+    // resincronizamos este panel desde los datos nuevos
+    const synced = syncFromStoreById(personId)
+
+    // si por alguna razón no pudo resincronizar, fuerzo localmente
+    if (!synced) {
       selectedPresent.value = false
+      if (selected.value) {
+        selected.value.present = false
+      }
     }
 
     snackbar.value = { open: true, text: 'Presencia removida' }
-
     emit('presence-removed', {
       id: personId,
-      person: updated ?? selected.value
+      person: selected.value
     })
   } catch (e) {
-    snackbar.value = { open: true, text: 'No se pudo quitar presente' }
+    snackbar.value = {
+      open: true,
+      text: e?.message || 'No se pudo quitar la presencialidad.'
+    }
     emit('error', {
       message:
         e?.response?.data?.message ||
@@ -648,56 +665,59 @@ async function onUnmarkPresent () {
     unmarking.value = false
   }
 }
-
-/* sync helper: trae datos de una persona devuelta por backend y actualiza UI */
-function syncFromPerson (p) {
-  selectedSeatCode.value = p.seatCode ?? p.seat ?? null
-  selectedSeatId.value = p.seatId ?? p.seat_id ?? selectedSeatId.value ?? null
-  selectedPresent.value = !!p.present
-  selectedDoc.value = p.doc || selectedDoc.value
-  selectedOrg.value = p.org || selectedOrg.value
-
-  selected.value = {
-    title: p.name,
-    value: p.id,
-    seatId: p.seatId ?? p.seat_id ?? null,
-    seatCode: p.seatCode ?? p.seat ?? null,
-    present: p.present,
-    subtitle: [p.org, p.doc].filter(Boolean).join(' · ') || '—',
-    doc: p.doc,
-    org: p.org
-  }
-}
 </script>
 
 <style scoped>
-.ck-wrap { overflow: hidden; }
+/* estilos resumidos, podés dejar los tuyos actuales */
+.ck-wrap { overflow: hidden; background:#0f1631; color:#fff; }
 .ck-header {
   display:flex;
   align-items:center;
   justify-content:space-between;
   padding:16px 18px;
   gap:12px;
-  background: linear-gradient(135deg, rgba(10,69,107,.10), rgba(215,219,69,.06));
+  background:#0f1631;
+  color:#fff;
+  border-bottom:1px solid rgba(255,255,255,.08);
 }
 .ck-title {
   font-weight:700;
   font-size:clamp(1rem, .96rem + .3vw, 1.12rem);
   letter-spacing:.2px;
+  color:#fff;
 }
-.ck-h-left { display:flex; align-items:center; }
 .ck-divider { opacity:.08; }
 
-.ck-body { padding:18px; }
+.ck-body {
+  padding:18px;
+  color:#fff;
+}
 .ck-form {
   display:grid;
   grid-template-columns: 1fr minmax(180px, 240px);
   gap:12px;
+  background:#1a234a;
+  border-radius:12px;
+  padding:12px;
+  border:1px solid rgba(255,255,255,.08);
+  color:#fff;
 }
-.ck-search :deep(.v-field) { border-radius:14px !important; }
-.ck-search :deep(.v-field__outline) { --v-field-border-width:2px; }
-.ck-search :deep(.v-input__control){ transition: transform .15s ease; }
-.ck-search:focus-within :deep(.v-input__control){ transform: translateY(-1px); }
+.ck-search :deep(.v-field){
+  border-radius:12px !important;
+  background:rgba(255,255,255,.06) !important;
+  color:#fff !important;
+}
+.ck-search :deep(.v-icon){ color:#fff !important; }
+.ck-search :deep(input){ color:#fff !important; }
+.ck-search :deep(.v-field-label){ color:rgba(255,255,255,.6) !important; }
+
+.ck-primary{
+  background:#0a456b !important;
+  color:#fff !important;
+  letter-spacing:.3px;
+  text-transform:uppercase;
+  font-weight:600;
+}
 
 .already-wrap {
   display:flex;
@@ -712,95 +732,93 @@ function syncFromPerson (p) {
   letter-spacing:.3px;
 }
 
-/* dropdown items */
-.ck-item :deep(.v-list-item-title),
-.ck-item :deep(.v-list-item-subtitle){
-  max-width:100%;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
+.ck-item{
+  background:#1b244e !important;
+  color:#fff !important;
 }
-.row-title{ display:inline-flex; align-items:center; min-width:0; }
-.name{ font-weight:600; }
-.muted{ opacity:.75; }
+.row-title{ display:inline-flex; align-items:center; min-width:0; color:#fff; }
+.name{ font-weight:600; color:#fff; }
+.muted{ opacity:.75; color:#fff; }
 .state-dot{ width:10px; height:10px; border-radius:999px; }
 .state-dot.is-present{ background:#2e7d32; }
 .state-dot.is-assigned{ background:#ffb300; }
 .state-dot.is-free{ background:#9e9e9e; }
-.elevated{ box-shadow:0 1px 2px rgba(0,0,0,.12); }
-.avatar-text{ font-size:12px; font-weight:700; line-height:32px; }
-.avatar-text.tiny{ font-size:11px; line-height:22px; }
-.sel-wrap{ display:inline-flex; align-items:center; min-width:0; max-width:100%; }
-.sel-wrap > span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.elevated{ box-shadow:0 1px 2px rgba(0,0,0,.6); background:#2a335f; color:#fff; }
+.avatar-text{ font-size:12px; font-weight:700; line-height:32px; color:#fff; }
+.avatar-text.tiny{ font-size:11px; line-height:22px; color:#fff; }
+.sel-wrap{ display:inline-flex; align-items:center; min-width:0; max-width:100%; color:#fff; }
 
-/* detail card */
 .cd-card{
   margin-top:14px;
   padding:16px;
-  background: rgba(255,255,255,.02);
-  border:1px solid rgba(255,255,255,.10);
-  box-shadow: 0 2px 8px rgba(0,0,0,.08) inset;
-  border-radius: 20px;
+  background:#1a2144;
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:12px;
+  color:#fff;
 }
 .cd-head{
   display:flex;
-  align-items:center;
+  align-items:flex-start;
   justify-content:space-between;
   gap:12px;
   min-width:0;
+  color:#fff;
 }
-.cd-ident{ display:flex; align-items:center; gap:12px; min-width:0; }
 .cd-namewrap{ min-width:0; }
-.cd-title{ font-weight:800; letter-spacing:.2px; }
-.cd-sub{ font-size:.92rem; }
-.cd-badges{ display:flex; align-items:center; }
+.cd-title{ font-weight:800; letter-spacing:.2px; color:#fff; }
+.cd-sub{ font-size:.92rem; color:#fff; opacity:.8; }
+.cd-badges{ display:flex; align-items:center; flex-wrap:wrap; }
 
-.cd-divider{ opacity:.08; margin:10px 0; }
+.cd-divider{
+  opacity:.15;
+  margin:10px 0;
+  border-color:rgba(255,255,255,.15);
+}
 
 .cd-grid{
   display:grid;
   gap:10px 16px;
   grid-template-columns: repeat(4, minmax(0,1fr));
+  color:#fff;
 }
 .cd-field{
   display:flex;
   align-items:center;
   gap:6px;
   min-width:0;
+  color:#fff;
+  font-size:.9rem;
 }
-.cd-field .lbl{ opacity:.7; font-size:.85rem; }
-.cd-field .val{ font-weight:700; }
+.cd-field .lbl{ opacity:.7; font-size:.85rem; color:#fff; }
+.cd-field .val{ font-weight:700; color:#fff; }
 
-/* acciones */
 .cd-actions{
   display:grid;
   grid-template-columns: repeat(auto-fit, minmax(min(220px,100%), 1fr));
   gap:10px;
-  justify-content:flex-start;
   margin-top:12px;
-}
-.cd-action{ width:100%; }
-
-/* botón REGISTRAR */
-.ck-primary{
-  background:linear-gradient(135deg,#0a456b,#0a456b);
   color:#fff;
-  letter-spacing:.3px;
-  text-transform:uppercase;
-  font-weight:600;
+}
+.cd-action{
+  width:100%;
+  background:rgba(255,255,255,.05) !important;
+  border-radius:10px !important;
+  border:1px solid rgba(255,255,255,.08) !important;
+  text-transform:none !important;
+  font-weight:600 !important;
+  color:#fff !important;
 }
 
-/* success banner */
 .success-banner{
   display:flex;
   align-items:center;
   gap:12px;
   padding:14px 16px;
-  border-radius:14px;
+  border-radius:12px;
   margin-top:14px;
-  background:linear-gradient(135deg, rgba(46,125,50,.18), rgba(46,125,50,.12));
+  background:rgba(46,125,50,.18);
   border:1px solid rgba(46,125,50,.35);
-  animation: pop-in .18s ease-out;
+  color:#fff;
 }
 .icon-wrap{
   width:36px;
@@ -809,15 +827,11 @@ function syncFromPerson (p) {
   display:grid;
   place-items:center;
   background:rgba(46,125,50,.25);
+  color:#fff;
 }
-.msg-wrap .title{ font-weight:700; }
-.msg-wrap .subtitle{ opacity:.9; }
-@keyframes pop-in{
-  from{ transform:scale(.98); opacity:0 }
-  to{ transform:scale(1); opacity:1 }
-}
+.msg-wrap .title{ font-weight:700; color:#fff; }
+.msg-wrap .subtitle{ opacity:.9; color:#fff; }
 
-/* responsive */
 @media (max-width: 1100px){
   .cd-grid{ grid-template-columns: repeat(3, minmax(0,1fr)); }
 }
@@ -828,7 +842,6 @@ function syncFromPerson (p) {
 }
 @media (max-width: 600px){
   .ck-body{ padding:14px; }
-  .avatar-text{ line-height:28px; font-size:11px; }
   .cd-grid{ grid-template-columns: 1fr; }
 }
 </style>
