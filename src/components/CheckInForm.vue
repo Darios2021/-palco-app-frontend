@@ -12,9 +12,10 @@
 
     <v-card-text class="ck-body">
       <!-- ===== BUSCADOR + CTA PRESENTE / YA REGISTRADO ===== -->
-      <v-form @submit.prevent="onSubmit" class="ck-form">
+      <v-form ref="formRef" @submit.prevent="handleSubmit" class="ck-form">
         <div class="ck-form-row">
           <v-autocomplete
+            class="ck-search"
             v-model="selected"
             v-model:search="search"
             :items="items"
@@ -34,14 +35,16 @@
             :custom-filter="filterFn"
             no-data-text="Sin coincidencias. Cargá la persona en la sección Personas."
             @update:model-value="onSelected"
-            @keydown.enter.prevent="onSubmit"
-            class="ck-search"
           >
             <!-- ITEM EN DROPDOWN -->
             <template #item="{ props, item }">
-              <v-list-item v-bind="props" density="comfortable" class="ck-item">
+              <v-list-item
+                v-bind="props"
+                density="comfortable"
+                class="ck-item"
+              >
                 <template #prepend>
-                  <v-avatar :size="avatarSize" class="elevated">
+                  <v-avatar :size="avatarSize" class="elevated avatar-chip">
                     <span class="avatar-text">{{ initials(item.raw.title) }}</span>
                   </v-avatar>
                 </template>
@@ -49,19 +52,21 @@
                 <template #title>
                   <div class="row-title">
                     <span class="name text-truncate">{{ item.raw.title }}</span>
+
                     <v-chip
                       v-if="item.raw.seatCode"
                       size="x-small"
-                      class="ml-2"
+                      class="ml-2 seat-chip"
                       :color="item.raw.present ? 'success' : 'warning'"
                       label
                     >
                       {{ item.raw.seatCode }}
                     </v-chip>
+
                     <v-chip
                       v-else
                       size="x-small"
-                      class="ml-2"
+                      class="ml-2 seat-chip"
                       variant="outlined"
                       label
                     >
@@ -86,23 +91,25 @@
             <!-- LO QUE QUEDA EN EL INPUT CUANDO ESTÁ SELECCIONADO -->
             <template #selection="{ item }">
               <div class="sel-wrap">
-                <v-avatar :size="22" class="mr-2 elevated">
+                <v-avatar :size="22" class="mr-2 elevated avatar-chip">
                   <span class="avatar-text tiny">{{ initials(item.raw.title) }}</span>
                 </v-avatar>
                 <span class="text-truncate">{{ item.raw.title }}</span>
+
                 <v-chip
                   v-if="item.raw.seatCode"
                   size="x-small"
-                  class="ml-2"
+                  class="ml-2 seat-chip"
                   :color="item.raw.present ? 'success' : 'warning'"
                   label
                 >
                   {{ item.raw.seatCode }}
                 </v-chip>
+
                 <v-chip
                   v-else
                   size="x-small"
-                  class="ml-2"
+                  class="ml-2 seat-chip"
                   variant="outlined"
                   label
                 >
@@ -122,7 +129,7 @@
               rounded="lg"
               prepend-icon="mdi-check"
               :loading="submitting"
-              :disabled="!selected"
+              :disabled="submitting || !selected"
               block
             >
               REGISTRAR
@@ -219,7 +226,8 @@
               prepend-icon="mdi-seat"
               class="cd-action"
               :loading="assigning"
-              @click="openSeatPicker()"
+              :disabled="assigning || !selectedId"
+              @click="openSeatPicker"
             >
               {{ selectedSeatCode ? 'Cambiar asiento' : 'Asignar asiento' }}
             </v-btn>
@@ -232,6 +240,7 @@
               prepend-icon="mdi-seat-passenger"
               class="cd-action"
               :loading="releasing"
+              :disabled="releasing"
               @click="confirmRelease = true"
             >
               Liberar asiento
@@ -245,6 +254,7 @@
               prepend-icon="mdi-close-circle-outline"
               class="cd-action"
               :loading="unmarking"
+              :disabled="unmarking"
               @click="onRemovePresenceLikeTable"
             >
               Quitar presente
@@ -269,169 +279,158 @@
         <v-card-actions class="px-4 pb-4">
           <v-spacer />
           <v-btn variant="text" @click="confirmRelease = false">Cancelar</v-btn>
-          <v-btn color="warning" :loading="releasing" @click="onReleaseSeat">
+          <v-btn
+            color="warning"
+            :loading="releasing"
+            :disabled="releasing"
+            @click="onReleaseSeat"
+          >
             Liberar
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-<!-- ===== MODAL PICKER DE ASIENTO ===== -->
-<v-dialog
-  v-model="seatPickerOpen"
-  :fullscreen="isMobile"
-  :max-width="isMobile ? undefined : 640"
-  scrollable
-  persistent
-  class="seat-dialog"
->
-  <template #activator></template>
+    <!-- ===== MODAL PICKER DE ASIENTO ===== -->
+    <v-dialog
+      v-model="seatPickerOpen"
+      :fullscreen="isMobile"
+      :max-width="isMobile ? undefined : 640"
+      scrollable
+      persistent
+      class="seat-dialog"
+    >
+      <template #activator></template>
 
-  <v-card class="seat-card" rounded="xl">
-    <!-- HEADER -->
-    <header class="seat-header">
-      <div class="seat-header-top">
-        <v-icon size="20" class="mr-2 seat-header-icon">mdi-seat</v-icon>
+      <v-card class="seat-card" rounded="xl">
+        <!-- HEADER -->
+        <header class="seat-header">
+          <div class="seat-header-top">
+            <v-icon size="20" class="mr-2 seat-header-icon">mdi-seat</v-icon>
 
-        <div class="seat-header-text">
-          <div class="seat-header-title">
-            {{ selected?.title ? `Asignar asiento a ${selected.title}` : 'Asignar asiento' }}
-          </div>
+            <div class="seat-header-text">
+              <div class="seat-header-title">
+                {{ selected?.title ? `Asignar asiento a ${selected.title}` : 'Asignar asiento' }}
+              </div>
 
-          <div class="seat-header-sub">
-            Elegí un asiento libre o reasigná uno existente.
-          </div>
-        </div>
+              <div class="seat-header-sub">
+                Elegí un asiento libre o reasigná uno existente.
+              </div>
+            </div>
 
-        <!-- close X en mobile -->
-        <v-btn
-          icon
-          size="small"
-          class="seat-close-btn"
-          variant="text"
-          @click="closeSeatPicker"
-        >
-          <v-icon>mdi-close</v-icon>
-        </v-btn>
-      </div>
-
-      <div class="seat-legend">
-        <v-chip color="success" label size="x-small" class="chip-strong">Presente</v-chip>
-        <v-chip color="warning" label size="x-small" class="chip-strong">Asignado</v-chip>
-        <v-chip variant="outlined" label size="x-small" class="chip-outline">Libre</v-chip>
-      </div>
-    </header>
-
-    <!-- BODY SCROLLEABLE -->
-    <section class="seat-body">
-      <div class="grid-rows-wrap">
-        <div class="grid-rows">
-          <div
-            v-for="(row, rIdx) in store.seats"
-            :key="rIdx"
-            class="row"
-          >
-            <div class="row-label">{{ row[0][0] }}</div>
-
+            <!-- close X en mobile -->
             <v-btn
-              v-for="code in row"
-              :key="code"
-              :class="[
-                'seat',
-                seatStatusLocal(code),
-                { 'seat-selected': pickedSeat === code }
-              ]"
-              variant="flat"
+              icon
               size="small"
-              :aria-label="`Asiento ${code}`"
+              class="seat-close-btn"
+              variant="text"
               :disabled="assigning"
-              @click="pickedSeat = code"
+              @click="closeSeatPicker"
             >
-              {{ code }}
+              <v-icon>mdi-close</v-icon>
             </v-btn>
           </div>
-        </div>
-      </div>
 
-      <div class="seat-info" v-if="pickedSeat">
-        <div class="seat-info-title">
-          Asiento seleccionado:
-          <span class="text-accent">{{ pickedSeat }}</span>
-        </div>
+          <div class="seat-legend">
+            <v-chip color="success" label size="x-small" class="chip-strong">Presente</v-chip>
+            <v-chip color="warning" label size="x-small" class="chip-strong">Asignado</v-chip>
+            <v-chip variant="outlined" label size="x-small" class="chip-outline">Libre</v-chip>
+          </div>
+        </header>
 
-        <div v-if="currentHolder">
-          Actualmente asignado a:
-          <b>{{ currentHolder.name }}</b>
-          <span class="text-dim">
-            · {{ currentHolder.org || '—' }} · {{ currentHolder.doc || '—' }}
-          </span>
-        </div>
+        <!-- BODY SCROLLEABLE -->
+        <section class="seat-body">
+          <div class="grid-rows-wrap">
+            <div class="grid-rows">
+              <div
+                v-for="(row, rIdx) in store.seats"
+                :key="rIdx"
+                class="row"
+              >
+                <div class="row-label">{{ row[0][0] }}</div>
 
-        <div v-else>
-          Este asiento está libre.
-        </div>
-      </div>
+                <v-btn
+                  v-for="code in row"
+                  :key="code"
+                  :class="[
+                    'seat',
+                    seatStatusLocal(code),
+                    { 'seat-selected': pickedSeat === code }
+                  ]"
+                  variant="flat"
+                  size="small"
+                  :aria-label="`Asiento ${code}`"
+                  :disabled="assigning"
+                  @click="pickedSeat = code"
+                >
+                  {{ code }}
+                </v-btn>
+              </div>
+            </div>
+          </div>
 
-      <!-- espacio fantasma para que nada quede tapado por el footer fijo -->
-      <div class="seat-bottom-spacer" />
-    </section>
+          <div class="seat-info" v-if="pickedSeat">
+            <div class="seat-info-title">
+              Asiento seleccionado:
+              <span class="text-accent">{{ pickedSeat }}</span>
+            </div>
 
-    <!-- FOOTER FIJO CON BOTONES -->
-    <footer class="seat-footer">
-      <v-btn
-        variant="text"
-        class="btn-cancel"
-        :disabled="assigning"
-        @click="closeSeatPicker"
-      >
-        Cancelar
-      </v-btn>
+            <div v-if="currentHolder">
+              Actualmente asignado a:
+              <b>{{ currentHolder.name }}</b>
+              <span class="text-dim">
+                · {{ currentHolder.org || '—' }} · {{ currentHolder.doc || '—' }}
+              </span>
+            </div>
 
-      <v-btn
-        class="btn-confirm"
-        color="primary"
-        :disabled="assigning || !pickedSeat"
-        :loading="assigning"
-        @click="confirmAssignSeat"
-      >
-        Confirmar
-      </v-btn>
-    </footer>
-  </v-card>
-</v-dialog>
+            <div v-else>
+              Este asiento está libre.
+            </div>
+          </div>
 
+          <!-- espacio fantasma para que nada quede tapado por el footer fijo -->
+          <div class="seat-bottom-spacer" />
+        </section>
 
-    <!-- ===== TOAST (ABAJO DERECHA) ===== -->
+        <!-- FOOTER FIJO CON BOTONES -->
+        <footer class="seat-footer">
+          <v-btn
+            variant="text"
+            class="btn-cancel"
+            :disabled="assigning"
+            @click="closeSeatPicker"
+          >
+            Cancelar
+          </v-btn>
+
+          <v-btn
+            class="btn-confirm"
+            color="primary"
+            :disabled="assigning || !pickedSeat"
+            :loading="assigning"
+            @click="confirmAssignSeat"
+          >
+            Confirmar
+          </v-btn>
+        </footer>
+      </v-card>
+    </v-dialog>
+
+    <!-- ===== TOAST GLOBAL (MISMO QUE 'NUEVA PERSONA') ===== -->
     <v-snackbar
-      v-model="toast.open"
+      v-model="snackbar.show"
+      :timeout="3000"
+      :color="snackbar.ok ? 'success' : 'error'"
       location="bottom right"
-      :timeout="2200"
-      class="toast-snackbar"
+      rounded="lg"
+      elevation="8"
+      class="snackbar-strong"
     >
-      <div class="toast-inner">
-        <v-icon
-          v-if="toast.type === 'ok'"
-          size="18"
-          class="mr-2 toast-icon ok"
-        >
-          mdi-check-circle
+      <div class="d-flex align-center">
+        <v-icon class="mr-2" size="20">
+          {{ snackbar.ok ? 'mdi-check-circle' : 'mdi-alert-circle' }}
         </v-icon>
-        <v-icon
-          v-else-if="toast.type === 'warn'"
-          size="18"
-          class="mr-2 toast-icon warn"
-        >
-          mdi-alert
-        </v-icon>
-        <v-icon
-          v-else-if="toast.type === 'err'"
-          size="18"
-          class="mr-2 toast-icon err"
-        >
-          mdi-alert-circle
-        </v-icon>
-
-        <span class="toast-text">{{ toast.text }}</span>
+        <span class="font-weight-600">{{ snackbar.text }}</span>
       </div>
     </v-snackbar>
   </v-card>
@@ -441,9 +440,7 @@
 import { computed, ref, watch, onMounted } from 'vue'
 import { useDisplay } from 'vuetify'
 import { useSeatsStore } from '../stores'
-import { useRouter } from 'vue-router'
 
-const router = useRouter()
 const store = useSeatsStore()
 
 const { smAndDown } = useDisplay()
@@ -455,10 +452,9 @@ const submitting  = ref(false)
 const releasing   = ref(false)
 const unmarking   = ref(false)
 
-/* asignación asiento */
 const seatPickerOpen = ref(false)
 const assigning  = ref(false)
-const pickedSeat = ref(null) // asiento elegido en modal
+const pickedSeat = ref(null)
 
 const search      = ref('')
 const selected    = ref(null)
@@ -471,21 +467,24 @@ const selectedOrg      = ref('')
 
 const confirmRelease = ref(false)
 
-const showSuccess = ref(false)
 const lastSeat    = ref(null)
 
-/* Toast abajo derecha */
-const toast = ref({
-  open: false,
+const snackbar = ref({
+  show: false,
   text: '',
-  type: 'ok' // 'ok' | 'warn' | 'err'
+  ok: true
 })
 
 /* ===== COMPUTED ===== */
 const menuProps = computed(() => ({
   maxHeight: smAndDown.value ? 320 : 380,
-  offset: smAndDown.value ? 6 : 8
+  offset: smAndDown.value ? 0 : 8,
+  eager: true,
+  location: 'bottom start',
+  transition: false,
+  contentClass: 'ck-menu-content'
 }))
+
 const avatarSize = computed(() => (smAndDown.value ? 28 : 32))
 
 const selectedId = computed(() => selected.value?.value ?? null)
@@ -494,14 +493,16 @@ const isAlreadyPresent = computed(() => !!selectedPresent.value)
 const chipText = computed(() => {
   if (isAlreadyPresent.value) return 'Presente'
   if (selectedSeatCode.value) return 'Asignado'
-  return 'Sin asiento'
+  return 'Sin asignar'
 })
 
-/* ===== INIT LOAD ===== */
+/* ===== LIFECYCLE ===== */
 onMounted(async () => {
   loading.value = true
   try {
-    await store.ensureLoaded?.()
+    if (typeof store.ensureLoaded === 'function') {
+      await store.ensureLoaded()
+    }
   } finally {
     loading.value = false
   }
@@ -552,7 +553,7 @@ function onSelected (obj) {
   hideToast()
 }
 
-/* Limpiar selección si limpio search */
+/* limpiar si borran el search */
 watch(search, v => {
   if (!v) {
     resetSelection()
@@ -560,17 +561,15 @@ watch(search, v => {
 })
 
 function resetSelection () {
-  selected.value        = null
-  selectedSeatCode.value= null
-  selectedSeatId.value  = null
-  selectedPresent.value = false
-  selectedDoc.value     = ''
-  selectedOrg.value     = ''
-  showSuccess.value     = false
+  selected.value         = null
+  selectedSeatCode.value = null
+  selectedSeatId.value   = null
+  selectedPresent.value  = false
+  selectedDoc.value      = ''
+  selectedOrg.value      = ''
   hideToast()
 }
 
-// helpers para hablar con el store
 async function tryCall (name, ...args) {
   const fn = store?.[name]
   if (typeof fn !== 'function') return undefined
@@ -581,7 +580,6 @@ async function tryCall (name, ...args) {
   }
 }
 
-// refrescar datos desde backend
 async function refreshStore () {
   await (
     store.refresh?.() ||
@@ -590,7 +588,6 @@ async function refreshStore () {
   )
 }
 
-// sincronizar UI local desde un objeto persona
 function syncFromPerson (p) {
   selectedSeatCode.value = p.seatCode ?? p.seat ?? p.seat_code ?? null
   selectedSeatId.value   = p.seatId   ?? p.seat_id ?? selectedSeatId.value ?? null
@@ -610,7 +607,6 @@ function syncFromPerson (p) {
   }
 }
 
-// sincronizar UI tomando la persona fresca del store
 function syncFromStoreById (idLike) {
   const fresh = (store.people ?? []).find(p => p.id == idLike)
   if (fresh) {
@@ -620,21 +616,17 @@ function syncFromStoreById (idLike) {
   return false
 }
 
-/* Toast helpers */
-function showToast(message, type = 'ok') {
-  toast.value = {
-    open: true,
-    text: message,
-    type
-  }
+/* snack helper */
+function showToast(message, ok = true) {
+  snackbar.value.text = message
+  snackbar.value.ok = ok
+  snackbar.value.show = true
 }
 function hideToast() {
-  toast.value.open = false
+  snackbar.value.show = false
 }
 
-/* ===== ASIGNACIÓN DE ASIENTO ===== */
-
-// estado visual del asiento en el mapa
+/* asiento status local */
 function seatStatusLocal(code) {
   const holder = store.people.find(p => p.seat === code)
   if (!holder) return 'free'
@@ -642,155 +634,163 @@ function seatStatusLocal(code) {
   return 'assigned'
 }
 
-// abrir modal
+/* abrir modal asiento */
 function openSeatPicker() {
-  // sacamos el requisito de tener selectedId para que no bloquee el primer click
   pickedSeat.value = selectedSeatCode.value || null
   seatPickerOpen.value = true
 }
 
-// cerrar modal
+/* cerrar modal asiento */
 function closeSeatPicker() {
+  if (assigning.value) return // evito cerrar mientras guarda
   seatPickerOpen.value = false
   pickedSeat.value = null
 }
 
-// quién tiene actualmente el asiento elegido
+/* quién tiene actualmente el asiento elegido */
 const currentHolder = computed(() => {
   if (!pickedSeat.value) return null
   return store.people.find(p => p.seat === pickedSeat.value) || null
 })
 
-// confirmar y persistir
+/* ===== submit helpers con bail ===== */
+function bailSubmit(msg, ok) {
+  showToast(msg, ok)
+  submitting.value = false
+}
+function bailAssign(msg, ok) {
+  showToast(msg, ok)
+  assigning.value = false
+}
+function bailRelease(msg, ok) {
+  showToast(msg, ok)
+  releasing.value = false
+  confirmRelease.value = false
+}
+function bailUnmark(msg, ok) {
+  showToast(msg, ok)
+  unmarking.value = false
+}
+
+/* ===== CONFIRMAR ASIENTO ===== */
 async function confirmAssignSeat() {
-  if (!selectedId.value || !pickedSeat.value) return
+  if (!selectedId.value) return bailAssign('Seleccioná una persona', false)
+  if (!pickedSeat.value) return bailAssign('Seleccioná un asiento', false)
+
   assigning.value = true
-
-  const targetId = selectedId.value
-  const newSeat  = pickedSeat.value
-
   try {
-    // 1. si alguien ya lo tenía, sacárselo
+    const targetId = selectedId.value
+    const newSeat  = pickedSeat.value
+
+    // liberar si alguien más lo tenía
     const other = store.people.find(p => p.id !== targetId && p.seat === newSeat)
     if (other) {
       await store.updatePerson(other.id, { seat: null })
     }
 
-    // 2. asignar a la persona actual
+    // asignar a la persona actual
     await store.updatePerson(targetId, { seat: newSeat })
 
-    // 3. refrescar lista desde backend y sincronizar estado local del form
     await refreshStore()
     syncFromStoreById(targetId)
 
-    showToast('Asiento asignado', 'ok')
-    seatPickerOpen.value = false
+    showToast('Asiento asignado', true)
   } catch (err) {
-    console.error('confirmAssignSeat (check-in) error', err)
-    showToast('Error al asignar asiento', 'err')
+    showToast('Error al asignar asiento', false)
   } finally {
     assigning.value = false
+    closeSeatPicker()
   }
 }
 
-/* ===== ACCIÓN: marcar presente ===== */
-async function onSubmit () {
-  if (!selected.value) return
-
-  const personInStore = (store.people ?? []).find(
-    p => p.id == selectedId.value
-  )
-  const already = selectedPresent.value || !!personInStore?.present
-  if (already) {
-    showToast('Ya estaba presente', 'warn')
-    return
-  }
-
+/* ===== MARCAR PRESENTE ===== */
+async function handleSubmit () {
+  if (submitting.value) return
   submitting.value = true
+
+  if (!selected.value) return bailSubmit('Seleccioná una persona', false)
+
   try {
     const id = selectedId.value
-    const p =
+
+    // refresco live para no tener que hacer dos clicks
+    const live = (store.people ?? []).find(p => p.id == id)
+
+    if (live?.present || selectedPresent.value) {
+      return bailSubmit('Ya estaba presente', true)
+    }
+
+    const updated =
       await tryCall('checkInById', id) ??
       await tryCall('setPresent', id, true) ??
       await tryCall('updatePerson', id, { present: true })
 
-    if (p) {
-      syncFromPerson(p)
+    if (updated) {
+      syncFromPerson(updated)
     } else {
+      // fallback
       selectedPresent.value = true
       if (selected.value) selected.value.present = true
     }
 
     lastSeat.value = selectedSeatCode.value || null
-    showSuccess.value = true
 
     await refreshStore()
     syncFromStoreById(id)
 
-    showToast('Registrado correctamente', 'ok')
+    return bailSubmit('Registrado correctamente', true)
   } catch (e) {
-    showToast('No se pudo registrar', 'err')
-  } finally {
-    submitting.value = false
+    return bailSubmit('No se pudo registrar', false)
   }
 }
 
-/* ===== ACCIÓN: liberar asiento ===== */
+/* ===== LIBERAR ASIENTO ===== */
 async function onReleaseSeat () {
+  if (releasing.value) return
+  releasing.value = true
+
   if (!selectedId.value || !selectedSeatCode.value) {
-    confirmRelease.value = false
-    return
+    return bailRelease('No hay asiento para liberar', false)
   }
 
-  releasing.value = true
   try {
     const personId = selectedId.value
-
     await store.updatePerson(personId, { seat: null })
 
     await refreshStore()
     syncFromStoreById(personId)
 
-    showToast('Asiento liberado', 'ok')
-
-    // NO redirigimos a /personas
+    return bailRelease('Asiento liberado', true)
   } catch (e) {
-    showToast('Error al liberar el asiento', 'err')
-  } finally {
-    releasing.value = false
-    confirmRelease.value = false
+    return bailRelease('Error al liberar el asiento', false)
   }
 }
 
-/* ===== ACCIÓN: quitar presente ===== */
+/* ===== QUITAR PRESENTE ===== */
 async function onRemovePresenceLikeTable () {
-  if (!selectedId.value || !isAlreadyPresent.value) return
-
+  if (unmarking.value) return
   unmarking.value = true
+
+  if (!selectedId.value) {
+    return bailUnmark('No hay persona seleccionada', false)
+  }
+
   try {
     const personId = selectedId.value
-
     await store.updatePerson(personId, { present: false })
 
-    // actualizar UI local inmediato
     selectedPresent.value = false
-    if (selected.value) {
-      selected.value.present = false
-    }
+    if (selected.value) selected.value.present = false
 
     await refreshStore()
     syncFromStoreById(personId)
 
-    showToast('Presencialidad desactivada', 'warn')
+    return bailUnmark('Presencialidad desactivada', true)
   } catch (e) {
-    showToast('No se pudo desactivar presencialidad', 'err')
-  } finally {
-    unmarking.value = false
+    return bailUnmark('No se pudo desactivar presencialidad', false)
   }
 }
 </script>
-
-
 
 <style scoped>
 /* ===== CONTENEDOR GENERAL ===== */
@@ -844,11 +844,18 @@ async function onRemovePresenceLikeTable () {
   }
 }
 
-/* input autocomplete */
+/* el contenedor del autocomplete lo hacemos relativo
+   para que el dropdown pueda alinearse sin gap */
+.ck-search {
+  position: relative;
+}
+
+/* campo autocomplete */
 .ck-search :deep(.v-field){
   border-radius:12px !important;
   background:rgba(255,255,255,.06) !important;
   color:#fff !important;
+  border:1px solid rgba(255,255,255,.18) !important;
 }
 .ck-search :deep(.v-icon){
   color:#fff !important;
@@ -860,7 +867,107 @@ async function onRemovePresenceLikeTable () {
   color:rgba(255,255,255,.6) !important;
 }
 
-/* celda CTA */
+/* menú del autocomplete:
+   - mismo ancho
+   - misma paleta
+   - pegado al input (sin gap)
+   - sin redondeo arriba para que parezca "una sola caja"
+*/
+.ck-menu-content{
+  background:#1a234a !important;
+  border:1px solid rgba(255,255,255,.18) !important;
+  border-radius:12px !important;
+  border-top-left-radius:0 !important;
+  border-top-right-radius:0 !important;
+  box-shadow:0 14px 32px rgba(0,0,0,.8) !important;
+  overflow:hidden !important;
+  color:#fff !important;
+
+  min-width:100% !important;
+  max-width:100% !important;
+
+  margin-top:-1px !important; /* une visualmente con el borde del input */
+}
+@media (min-width:601px){
+  .ck-menu-content{
+    min-width:320px !important;
+    max-width:360px !important;
+  }
+}
+
+/* items del dropdown */
+.ck-item{
+  background:#1b244e !important;
+  color:#fff !important;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.ck-item:last-child{
+  border-bottom:none;
+}
+.row-title{
+  display:inline-flex;
+  align-items:center;
+  min-width:0;
+  color:#fff;
+  font-size:.95rem;
+  font-weight:600;
+  line-height:1.3;
+}
+.name{
+  font-weight:600;
+  color:#fff;
+}
+.muted{
+  opacity:.75;
+  color:#fff;
+  font-size:.8rem;
+  line-height:1.2;
+}
+.state-dot{
+  width:10px;
+  height:10px;
+  border-radius:999px;
+}
+.state-dot.is-present{ background:#2e7d32; }
+.state-dot.is-assigned{ background:#ffb300; }
+.state-dot.is-free{ background:#9e9e9e; }
+
+.elevated{
+  background:#27316b;
+  color:#fff;
+  font-weight:800;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow:0 2px 6px rgba(0,0,0,.4);
+  border-radius:999px;
+}
+.avatar-chip{
+  min-width:28px;
+}
+.avatar-text{
+  font-size:13px;
+  letter-spacing:.5px;
+  font-weight:700;
+  line-height:1;
+  color:#fff;
+}
+.avatar-text.tiny{
+  font-size:11px;
+}
+.sel-wrap{
+  display:inline-flex;
+  align-items:center;
+  min-width:0;
+  max-width:100%;
+  color:#fff;
+}
+.seat-chip{
+  font-weight:700 !important;
+  letter-spacing:.03em;
+}
+
+/* CTA cell */
 .ck-cta-cell{
   display:flex;
   align-items:stretch;
@@ -870,8 +977,6 @@ async function onRemovePresenceLikeTable () {
     width:100%;
   }
 }
-
-/* botón registrar */
 .ck-primary{
   background:#0a456b !important;
   color:#fff !important;
@@ -895,62 +1000,6 @@ async function onRemovePresenceLikeTable () {
   justify-content:center;
 }
 
-/* dropdown list item */
-.ck-item{
-  background:#1b244e !important;
-  color:#fff !important;
-}
-.row-title{
-  display:inline-flex;
-  align-items:center;
-  min-width:0;
-  color:#fff;
-}
-.name{
-  font-weight:600;
-  color:#fff;
-}
-.muted{
-  opacity:.75;
-  color:#fff;
-}
-.state-dot{
-  width:10px;
-  height:10px;
-  border-radius:999px;
-}
-.state-dot.is-present{ background:#2e7d32; }
-.state-dot.is-assigned{ background:#ffb300; }
-.state-dot.is-free{ background:#9e9e9e; }
-
-.elevated{
-  background:#27316b;
-  color:#fff;
-  font-weight:800;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  box-shadow:0 2px 6px rgba(0,0,0,.4);
-  border-radius:999px;
-}
-.avatar-text{
-  font-size:13px;
-  letter-spacing:.5px;
-  font-weight:700;
-  line-height:1;
-  color:#fff;
-}
-.avatar-text.tiny{
-  font-size:11px;
-}
-.sel-wrap{
-  display:inline-flex;
-  align-items:center;
-  min-width:0;
-  max-width:100%;
-  color:#fff;
-}
-
 /* ===== CARD DETALLE ===== */
 .cd-card{
   margin-top:16px;
@@ -961,8 +1010,6 @@ async function onRemovePresenceLikeTable () {
   box-shadow:0 4px 20px rgba(0,0,0,.3);
   color:#fff;
 }
-
-/* header de la card */
 .cd-head{
   display:flex;
   justify-content:space-between;
@@ -1010,23 +1057,17 @@ async function onRemovePresenceLikeTable () {
     order:2;
   }
 }
-
-/* chip estado */
 .cd-chip{
   font-weight:700;
   text-transform:uppercase;
   letter-spacing:.04em;
   color:#fff;
 }
-
-/* divisor */
 .cd-divider{
   opacity:.15;
   margin:12px 0;
   border-color:rgba(255,255,255,.15);
 }
-
-/* grid info */
 .cd-grid{
   display:grid;
   gap:10px 16px;
@@ -1051,8 +1092,6 @@ async function onRemovePresenceLikeTable () {
   color:#fff;
   word-break:break-word;
 }
-
-/* acciones */
 .cd-actions{
   margin-top:16px;
   display:grid;
@@ -1070,56 +1109,27 @@ async function onRemovePresenceLikeTable () {
   text-transform:none !important;
   box-shadow:0 2px 6px rgba(0,0,0,.2);
 }
-
-/* mobile/tablet: 1 por fila más agresivo */
 @media (max-width:900px){
   .cd-actions{
     grid-template-columns:1fr;
   }
 }
 
-/* ===== TOAST ===== */
-.toast-snackbar :deep(.v-overlay__content){
-  padding:0 !important;
-}
-.toast-inner{
-  display:flex;
-  align-items:center;
-  background:#1a234a;
-  color:#fff;
-  border:1px solid rgba(255,255,255,.18);
-  border-radius:10px;
-  font-size:.9rem;
-  font-weight:600;
-  padding:10px 14px;
-  min-width:220px;
-  max-width:320px;
-  box-shadow:0 10px 24px rgba(0,0,0,.6);
-}
-.toast-icon.ok{
-  color:#4caf50;
-}
-.toast-icon.warn{
-  color:#ffb300;
-}
-.toast-icon.err{
-  color:#ff5252;
-}
-.toast-text{
-  line-height:1.3;
+/* ===== SNACKBAR GLOBAL ===== */
+.snackbar-strong {
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-transform: none;
+  max-width: 360px;
+  border-radius: 12px !important;
+  box-shadow: 0 20px 40px rgba(0,0,0,.6);
   color:#fff;
 }
 
-/* =================================================== */
-/* =========== MODAL ASIGNAR / CAMBIAR ASIENTO ======= */
-/* =================================================== */
-
-/* oscurecer el fondo/backdrop del dialog para que el modal destaque */
+/* ===== MODAL ASIENTOS ===== */
 .seat-dialog :deep(.v-overlay__scrim){
   background: rgba(0,0,0,.65) !important;
 }
-
-/* tarjeta contenedora del modal */
 .seat-card {
   background: #151d44 !important;
   color: #eaf0ff;
@@ -1135,26 +1145,20 @@ async function onRemovePresenceLikeTable () {
   overflow: hidden;
   position: relative;
 }
-
-/* MOBILE/TABLET (fullscreen-ish dialog) */
 @media (max-width: 960px) {
   .seat-card {
-    height: 80vh;        /* <-- bajamos de 90vh a 80vh para subir el footer */
+    height: 80vh;
     max-height: 80vh;
   }
 }
-
-/* DESKTOP (dialog modal centrado con max-width) */
 @media (min-width: 961px) {
   .seat-card {
     height: auto;
-    max-height: 80vh;    /* limita alto total del card en escritorio */
+    max-height: 80vh;
     min-width: 560px;
     max-width: 640px;
   }
 }
-
-/* HEADER fijo arriba */
 .seat-header {
   flex-shrink: 0;
   background: radial-gradient(
@@ -1168,7 +1172,6 @@ async function onRemovePresenceLikeTable () {
   padding-bottom:12px;
   box-shadow:0 6px 16px rgba(0,0,0,.7);
 }
-
 .seat-header-top{
   display:flex;
   align-items:flex-start;
@@ -1208,8 +1211,6 @@ async function onRemovePresenceLikeTable () {
   width:32px;
   height:32px;
 }
-
-/* leyenda de estado */
 .seat-legend{
   display:flex;
   flex-wrap:wrap;
@@ -1235,8 +1236,6 @@ async function onRemovePresenceLikeTable () {
   padding:2px 8px !important;
   font-size:.7rem !important;
 }
-
-/* BODY scrolleable en el medio */
 .seat-body {
   flex: 1 1 auto;
   overflow-y: auto;
@@ -1245,10 +1244,8 @@ async function onRemovePresenceLikeTable () {
   padding-top:12px;
   background:#151d44;
   color:#fff;
-  min-height:0; /* importante para que el flex + scroll funcione */
+  min-height:0;
 }
-
-/* tabla de asientos */
 .grid-rows-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -1283,8 +1280,6 @@ async function onRemovePresenceLikeTable () {
   font-size:.8rem;
   line-height:1.1;
 }
-
-/* botón asiento */
 .seat {
   min-width: 58px;
   height: 36px;
@@ -1305,8 +1300,6 @@ async function onRemovePresenceLikeTable () {
   outline-offset: 0;
   box-shadow: 0 0 8px rgba(255,217,81,.75);
 }
-
-/* info de selección */
 .seat-info{
   margin-top:16px;
   font-size:.9rem;
@@ -1321,18 +1314,14 @@ async function onRemovePresenceLikeTable () {
 }
 .text-accent { color: #ffd951; font-weight: 700; }
 .text-dim { color: rgba(234,240,255, .75); }
-
-/* espacio fantasma para que el footer sticky no tape el contenido al final */
 .seat-bottom-spacer{
   height:72px;
 }
 @media (min-width: 961px) {
   .seat-bottom-spacer{
-    height:24px; /* en desktop menos relleno extra */
+    height:24px;
   }
 }
-
-/* FOOTER (botones Cancelar / Confirmar) */
 .seat-footer {
   flex-shrink: 0;
   display:flex;
@@ -1345,8 +1334,6 @@ async function onRemovePresenceLikeTable () {
   border-top:1px solid rgba(255,217,81,.3);
   box-shadow:0 -6px 16px rgba(0,0,0,.8);
 }
-
-/* MOBILE/TABLET: footer fijo visible aunque scrollees */
 @media (max-width: 960px) {
   .seat-footer {
     position: sticky;
@@ -1357,16 +1344,12 @@ async function onRemovePresenceLikeTable () {
     box-shadow:0 -4px 12px rgba(0,0,0,.8);
   }
 }
-
-/* DESKTOP: footer normal al final del card */
 @media (min-width: 961px) {
   .seat-footer {
     position: static;
     box-shadow:0 -4px 12px rgba(0,0,0,.6);
   }
 }
-
-/* estilos botones footer */
 .btn-cancel {
   color:#ffd951 !important;
   text-transform:none !important;
@@ -1379,8 +1362,6 @@ async function onRemovePresenceLikeTable () {
   border-radius:10px !important;
   min-width:120px;
 }
-
-/* breakpoints medianos: comprimimos el grid de asientos */
 @media (max-width: 960px) {
   .grid-rows {
     gap: 10px;
@@ -1402,8 +1383,6 @@ async function onRemovePresenceLikeTable () {
     font-size: 0.8rem;
   }
 }
-
-/* teléfonos muy angostos */
 @media (max-width: 400px) {
   .grid-rows {
     min-width: max(400px, 100%);
@@ -1423,4 +1402,3 @@ async function onRemovePresenceLikeTable () {
   }
 }
 </style>
-

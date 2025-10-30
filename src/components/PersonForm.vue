@@ -70,6 +70,8 @@
             <v-select
               v-model="form.seat"
               :items="seatOptions"
+              item-title="title"
+              item-value="value"
               label="Asiento asignado"
               placeholder="Seleccioná un asiento (opcional)"
               clearable
@@ -78,7 +80,7 @@
               hide-details="auto"
               :menu-props="menuProps"
             >
-              <!-- Cómo se ven las opciones en el dropdown -->
+              <!-- opciones -->
               <template #item="{ props, item }">
                 <v-list-item v-bind="props" density="comfortable">
                   <template #title>
@@ -98,14 +100,14 @@
                 </v-list-item>
               </template>
 
-              <!-- Cómo se ve el valor seleccionado en el input -->
+              <!-- valor seleccionado -->
               <template #selection="{ item }">
                 <span v-if="item && item.raw">{{ item.raw.code }}</span>
               </template>
             </v-select>
           </v-col>
 
-          <!-- ESTADO SOLO EN EDICIÓN -->
+          <!-- ESTADO SOLO EDICIÓN -->
           <v-col v-if="isEdit" cols="12" md="4" class="d-flex align-end">
             <div class="w-100">
               <div class="text-dim mb-1">Estado actual</div>
@@ -118,6 +120,7 @@
                 >
                   {{ personPresent ? 'Presente' : '—' }}
                 </v-chip>
+
                 <v-chip
                   v-if="personSeat"
                   :color="statusColor(seatStatus(personSeat))"
@@ -134,25 +137,16 @@
         </v-row>
       </v-card-text>
 
-      <!-- FOOTER / FEEDBACK -->
+      <!-- FOOTER -->
       <v-divider class="mt-6 mb-0" />
 
       <div class="actions-wrap">
-        <!-- Mensaje de guardado / error -->
         <div class="left">
-          <transition name="fade">
-            <div v-if="feedback.text" class="feedback-msg" :class="feedback.ok ? 'ok' : 'err'">
-              <v-icon size="18" class="mr-1">
-                {{ feedback.ok ? 'mdi-check-circle' : 'mdi-alert-circle' }}
-              </v-icon>
-              <span>{{ feedback.text }}</span>
-            </div>
-          </transition>
-
           <v-btn
             variant="text"
             class="btn-text ml-0 mt-2 mt-md-0"
             @click="onReset"
+            :disabled="loading"
           >
             Limpiar
           </v-btn>
@@ -164,6 +158,7 @@
             color="primary"
             class="btn-strong"
             :loading="loading"
+            :disabled="loading"
             prepend-icon="mdi-content-save"
           >
             {{ isEdit ? 'Guardar persona' : 'Crear persona' }}
@@ -171,6 +166,24 @@
         </div>
       </div>
     </v-form>
+
+    <!-- SNACKBAR / TOAST -->
+    <v-snackbar
+      v-model="snackbar.show"
+      :timeout="3000"
+      :color="snackbar.ok ? 'success' : 'error'"
+      location="bottom right"
+      rounded="lg"
+      elevation="8"
+      class="snackbar-strong"
+    >
+      <div class="d-flex align-center">
+        <v-icon class="mr-2" size="20">
+          {{ snackbar.ok ? 'mdi-check-circle' : 'mdi-alert-circle' }}
+        </v-icon>
+        <span class="font-weight-600">{{ snackbar.text }}</span>
+      </div>
+    </v-snackbar>
   </v-card>
 </template>
 
@@ -179,24 +192,32 @@ import { computed, reactive, ref, watch, nextTick } from 'vue'
 import { useDisplay } from 'vuetify'
 import { useSeatsStore } from '../stores'
 
-/* --- props/emits --- */
+/* props / emits */
 const props = defineProps({
   modelValue: { type: Object, default: null }
 })
 const emit = defineEmits(['saved','update:modelValue'])
 
-/* --- ui state --- */
+/* ui state */
 const { smAndDown } = useDisplay()
 const formRef = ref(null)
 const loading = ref(false)
-const triedSubmit = ref(false)          // para marcar error en "Nombre completo"
-const feedback = ref({ text: '', ok: true })
+const triedSubmit = ref(false)
 
-/* --- store --- */
+/* snackbar feedback global */
+const snackbar = reactive({
+  show: false,
+  text: '',
+  ok: true
+})
+
+/* store */
 const store = useSeatsStore()
-if (!store.seats?.length) store.initSeats?.(['A','B','C','D'], 10)
+if (!store.seats?.length && typeof store.initSeats === 'function') {
+  store.initSeats(['A','B','C','D'], 10)
+}
 
-/* --- form data --- */
+/* form model */
 const empty = { name: '', doc: '', org: '', seat: null }
 const form = reactive({ ...empty })
 
@@ -204,23 +225,27 @@ const isEdit = computed(() => !!props.modelValue?.id)
 const personSeat = computed(() => props.modelValue?.seat ?? null)
 const personPresent = computed(() => !!props.modelValue?.present)
 
-/* --- seat helpers --- */
+/* ==== seats helpers ==== */
 const seatStatus = (code) => {
   if (!code) return 'free'
-  if (typeof store.seatStatus === 'function') return store.seatStatus(code)
+  if (typeof store.seatStatus === 'function') {
+    return store.seatStatus(code)
+  }
   const who = (store.people ?? []).find(p => (p.seat ?? p.seatCode) === code)
   if (!who) return 'free'
   return who.present ? 'present' : 'assigned'
 }
 
-// opciones para el combo
 const seatOptions = computed(() => {
-  const allCodes = store.seats?.flat?.() ?? []
+  const matrix = store.seats ?? []
+  const allCodes = Array.isArray(matrix.flat)
+    ? matrix.flat()
+    : matrix.flat?.() ?? []
   return allCodes.map(code => ({
     code,
     status: seatStatus(code),
-    title: code,    // v-select usa title/value internamente
-    value: code
+    title: code,
+    value: code,
   }))
 })
 
@@ -243,7 +268,7 @@ const menuProps = computed(() => ({
   offset: smAndDown.value ? 6 : 8
 }))
 
-/* --- validation rules --- */
+/* ==== validation ==== */
 const nameRules = [
   v => !!(v && String(v).trim()) || 'Requerido',
   v => String(v || '').trim().length >= 3 || 'Mínimo 3 caracteres'
@@ -252,27 +277,23 @@ const docRules = [
   v => !v || /^[0-9.\- ]{6,}$/.test(v) || 'Formato inválido'
 ]
 
-/* error de nombre sólo si intentó guardar */
 const nameError = computed(() => {
   if (!triedSubmit.value) return false
   return !form.name || String(form.name).trim().length < 3
 })
 
-/* --- sync external model to form --- */
+/* ==== sync externo -> form ==== */
 watch(() => props.modelValue, (v) => {
-  Object.assign(form, v ? { ...empty, ...v, seat: v.seat ?? null } : { ...empty })
-  feedback.value = { text: '', ok: true }
+  Object.assign(
+    form,
+    v
+      ? { ...empty, ...v, seat: v.seat ?? null }
+      : { ...empty }
+  )
   triedSubmit.value = false
 }, { immediate: true })
 
-/* al tipear algo nuevo reseteo feedback */
-watch(form, () => {
-  if (feedback.value.text) {
-    feedback.value = { text: '', ok: true }
-  }
-}, { deep: true })
-
-/* --- helpers --- */
+/* ==== helpers ==== */
 function normalizePayload (payload) {
   const out = { ...payload }
   if (out.seat === '') out.seat = null
@@ -280,80 +301,104 @@ function normalizePayload (payload) {
 }
 
 async function refreshStore () {
-  await (store.reload?.() || store.ensureLoaded?.() || Promise.resolve())
+  if (typeof store.reload === 'function') {
+    await store.reload()
+  } else if (typeof store.ensureLoaded === 'function') {
+    await store.ensureLoaded()
+  }
 }
 
-/* --- submit --- */
+function safeResetForm () {
+  if (formRef.value?.reset) {
+    formRef.value.reset()
+  }
+  if (formRef.value?.resetValidation) {
+    formRef.value.resetValidation()
+  }
+  Object.assign(form, { ...empty })
+}
+
+/* mostrar toast */
+function showToast (text, ok = true) {
+  snackbar.text = text
+  snackbar.ok = ok
+  snackbar.show = true
+}
+
+/* SUBMIT */
 async function onSubmit () {
   triedSubmit.value = true
-  feedback.value = { text: '', ok: true }
-
-  // validar con Vuetify (devuelve { valid })
-  const result = await formRef.value?.validate?.()
-  const valid = typeof result === 'object' ? result.valid : !!result
-  if (!valid) return
-
   loading.value = true
+
   try {
+    // validar
+    const result = await formRef.value?.validate?.()
+    const valid = typeof result === 'object' ? result.valid : !!result
+    if (!valid) {
+      loading.value = false
+      return
+    }
+
+    const payload = normalizePayload(form)
+
     if (isEdit.value) {
-      await store.updatePerson(props.modelValue.id, normalizePayload(form))
+      // update
+      await store.updatePerson(props.modelValue.id, payload)
 
-      feedback.value = { text: 'Cambios guardados.', ok: true }
+      showToast('Cambios guardados.', true)
 
+      emit('update:modelValue', { ...props.modelValue, ...payload })
       emit('saved', { id: props.modelValue.id })
-      emit('update:modelValue', { ...props.modelValue, ...normalizePayload(form) })
     } else {
-      const created = await store.createPerson(normalizePayload(form))
-      const id = created?.id ?? created
+      // create
+      const created = await store.createPerson(payload)
+      const newId = created?.id ?? created ?? null
 
-      feedback.value = {
-        text: id ? `Persona creada (#${id}).` : 'Persona creada correctamente.',
-        ok: true
-      }
+      showToast(
+        newId
+          ? `Persona creada (#${newId}).`
+          : 'Persona creada correctamente.',
+        true
+      )
 
-      // limpio campos y validación visual
-      formRef.value?.reset?.()
+      safeResetForm()
       await nextTick()
-      Object.assign(form, { ...empty })
       triedSubmit.value = false
 
-      emit('saved', { id })
+      emit('saved', { id: newId })
     }
 
     await refreshStore()
   } catch (e) {
-    feedback.value = {
-      text: e?.message || 'Error al guardar.',
-      ok: false
-    }
+    showToast(e?.message || 'Error al guardar.', false)
   } finally {
     loading.value = false
   }
 }
 
-/* --- reset manual --- */
+/* RESET MANUAL */
 function onReset () {
-  formRef.value?.reset?.()
-  Object.assign(form, { ...empty })
+  safeResetForm()
   triedSubmit.value = false
-  feedback.value = { text: '', ok: true }
+  showToast('Formulario limpio.', true)
 }
 </script>
 
 <style scoped>
-/* Card look & feel */
 .card-contrast {
   background: #0e1230 !important;
   border: 1px solid rgba(255, 217, 81, .14);
   box-shadow: 0 6px 18px rgba(0,0,0,.25);
   color: #eaf0ff;
 }
+
 .title-contrast {
   background: linear-gradient(180deg, rgba(255,217,81,.06), rgba(11,13,40,0));
   border-bottom: 1px solid rgba(255,217,81,.10);
   font-weight: 800;
   line-height: 1.2;
 }
+
 .text-dim {
   color: rgba(234,240,255, .78);
 }
@@ -398,45 +443,22 @@ function onReset () {
   letter-spacing: .03em;
 }
 
-/* Mensaje de feedback inline */
-.feedback-msg {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 8px;
-  font-size: .9rem;
-  line-height: 1.2;
-  font-weight: 500;
-  padding: 6px 10px;
-  margin-bottom: 6px;
-}
-.feedback-msg.ok {
-  background: rgba(46,125,50,.18);
-  border: 1px solid rgba(46,125,50,.4);
-  color: #6eff6e;
-}
-.feedback-msg.err {
-  background: rgba(200,50,50,.18);
-  border: 1px solid rgba(200,50,50,.4);
-  color: #ff8f8f;
+/* Snackbar fuerte estilo "sistema" */
+.snackbar-strong {
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-transform: none;
+  max-width: 360px;
+  border-radius: 12px !important;
+  box-shadow: 0 20px 40px rgba(0,0,0,.6);
 }
 
-/* layout gaps */
+/* gaps */
 .g-12 {
   row-gap: 12px;
 }
 
-/* fade animation */
-.fade-enter-active,
-.fade-leave-active {
-  transition: all .18s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-
-/* responsive footer behaviour */
+/* responsive footer */
 @media (max-width: 960px){
   .actions-wrap{
     position: static;
