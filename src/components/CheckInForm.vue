@@ -7,22 +7,13 @@
         <v-icon size="22" class="mr-2">mdi-account-search</v-icon>
         <span class="ck-title">Control de ingreso al palco</span>
       </div>
-
-      <v-chip
-        v-if="selectedSeat"
-        :color="selectedPresent ? 'success' : 'warning'"
-        label
-        size="small"
-        class="ck-h-chip"
-      >
-        Asiento {{ selectedSeat }}
-      </v-chip>
+      <!-- limpio: sin chips duplicados -->
     </header>
 
     <v-divider class="ck-divider" />
 
     <v-card-text class="ck-body">
-      <!-- ===== BUSCADOR + CTA ===== -->
+      <!-- ===== BUSCADOR + CTA PRESENTE ===== -->
       <v-form @submit.prevent="onSubmit" class="ck-form">
         <v-autocomplete
           v-model="selected"
@@ -48,7 +39,7 @@
           aria-label="Buscar persona para registrar asistencia"
           class="ck-search"
         >
-          <!-- ITEM -->
+          <!-- ITEM EN LISTA -->
           <template #item="{ props, item }">
             <v-list-item v-bind="props" density="comfortable" class="ck-item">
               <template #prepend>
@@ -56,31 +47,45 @@
                   <span class="avatar-text">{{ initials(item.raw.title) }}</span>
                 </v-avatar>
               </template>
+
               <template #title>
                 <div class="row-title">
                   <span class="name text-truncate">{{ item.raw.title }}</span>
                   <v-chip
-                    v-if="item.raw.seat"
+                    v-if="item.raw.seatCode"
                     size="x-small"
                     class="ml-2"
                     :color="item.raw.present ? 'success' : 'warning'"
                     label
                   >
-                    {{ item.raw.seat }}
+                    {{ item.raw.seatCode }}
                   </v-chip>
-                  <v-chip v-else size="x-small" class="ml-2" variant="outlined" label>Libre</v-chip>
+                  <v-chip
+                    v-else
+                    size="x-small"
+                    class="ml-2"
+                    variant="outlined"
+                    label
+                  >
+                    Libre
+                  </v-chip>
                 </div>
               </template>
+
               <template #subtitle>
                 <span class="muted text-truncate">{{ item.raw.subtitle }}</span>
               </template>
+
               <template #append>
-                <div class="state-dot" :class="item.raw.present ? 'is-present' : (item.raw.seat ? 'is-assigned' : 'is-free')" />
+                <div
+                  class="state-dot"
+                  :class="item.raw.present ? 'is-present' : (item.raw.seatCode ? 'is-assigned' : 'is-free')"
+                />
               </template>
             </v-list-item>
           </template>
 
-          <!-- SELECCIÓN -->
+          <!-- LO QUE SE VE ADENTRO DEL INPUT CUANDO YA ELEGISTE -->
           <template #selection="{ item }">
             <div class="sel-wrap">
               <v-avatar :size="22" class="mr-2">
@@ -88,20 +93,33 @@
               </v-avatar>
               <span class="text-truncate">{{ item.raw.title }}</span>
               <v-chip
-                v-if="item.raw.seat"
+                v-if="item.raw.seatCode"
                 size="x-small"
                 class="ml-2"
                 :color="item.raw.present ? 'success' : 'warning'"
                 label
               >
-                {{ item.raw.seat }}
+                {{ item.raw.seatCode }}
               </v-chip>
-              <v-chip v-else size="x-small" class="ml-2" variant="outlined" label>Libre</v-chip>
+              <v-chip
+                v-else
+                size="x-small"
+                class="ml-2"
+                variant="outlined"
+                label
+              >
+                Libre
+              </v-chip>
             </div>
           </template>
         </v-autocomplete>
 
-        <v-tooltip :text="isAlreadyPresent ? 'Esta persona ya fue registrada' : 'Registrar asistencia'" location="top">
+        <!-- BOTÓN MARCAR PRESENTE -->
+        <v-tooltip
+          v-if="!isAlreadyPresent"
+          text="Registrar asistencia"
+          location="top"
+        >
           <template #activator="{ props }">
             <v-btn
               v-bind="props"
@@ -109,15 +127,32 @@
               type="submit"
               size="large"
               rounded="lg"
-              :prepend-icon="isAlreadyPresent ? 'mdi-check-decagram' : 'mdi-check'"
+              prepend-icon="mdi-check"
               :loading="submitting"
-              :disabled="!selected || isAlreadyPresent"
+              :disabled="!selected"
               block
             >
-              {{ isAlreadyPresent ? 'YA REGISTRADO' : 'REGISTRAR' }}
+              REGISTRAR
             </v-btn>
           </template>
         </v-tooltip>
+
+        <!-- CHIP YA REGISTRADO (REEMPLAZA EL BOTÓN) -->
+        <div
+          v-else
+          class="already-wrap"
+        >
+          <v-chip
+            color="success"
+            label
+            size="large"
+            class="already-chip"
+            variant="flat"
+          >
+            <v-icon start size="18">mdi-check-decagram</v-icon>
+            YA REGISTRADO
+          </v-chip>
+        </div>
       </v-form>
 
       <!-- ===== PANEL DE DETALLE ===== -->
@@ -129,23 +164,38 @@
               <v-avatar size="46" class="elevated">
                 <span class="avatar-text">{{ initials(selected.title) }}</span>
               </v-avatar>
+
               <div class="cd-namewrap">
                 <div class="cd-title text-truncate">{{ selected.title }}</div>
-                <div v-if="selected.subtitle" class="cd-sub muted text-truncate">{{ selected.subtitle }}</div>
+                <div
+                  v-if="selected.subtitle"
+                  class="cd-sub muted text-truncate"
+                >
+                  {{ selected.subtitle }}
+                </div>
               </div>
             </div>
 
             <div class="cd-badges">
+              <!-- Estado general -->
               <v-chip
                 size="small"
-                :color="isAlreadyPresent ? 'success' : (selectedSeat ? 'warning' : '')"
-                :variant="!selectedSeat ? 'outlined' : 'flat'"
+                :color="isAlreadyPresent ? 'success' : (selectedSeatCode ? 'warning' : '')"
+                :variant="!selectedSeatCode ? 'outlined' : 'flat'"
                 label
               >
-                {{ isAlreadyPresent ? 'Presente' : selectedSeat ? 'Asignado' : 'Sin asiento' }}
+                {{ chipText }} <!-- Presente / Asignado / Sin asiento -->
               </v-chip>
-              <v-chip v-if="selectedSeat" size="small" color="primary" label class="ml-2">
-                {{ selectedSeat }}
+
+              <!-- Asiento -->
+              <v-chip
+                v-if="selectedSeatCode"
+                size="small"
+                color="primary"
+                label
+                class="ml-2"
+              >
+                {{ selectedSeatCode }}
               </v-chip>
             </div>
           </div>
@@ -159,57 +209,95 @@
               <span class="lbl">DNI</span>
               <span class="val">{{ selectedDoc || '—' }}</span>
             </div>
+
             <div class="cd-field">
               <v-icon size="16" class="mr-1 muted">mdi-town-hall</v-icon>
               <span class="lbl">Organismo</span>
               <span class="val">{{ selectedOrg || '—' }}</span>
             </div>
+
             <div class="cd-field">
               <v-icon size="16" class="mr-1 muted">mdi-check</v-icon>
               <span class="lbl">Estado</span>
               <span class="val">
                 <span v-if="isAlreadyPresent">Presente</span>
-                <span v-else-if="selectedSeat">Asignado</span>
+                <span v-else-if="selectedSeatCode">Asignado</span>
                 <span v-else>Sin asignar</span>
               </span>
             </div>
+
             <div class="cd-field">
               <v-icon size="16" class="mr-1 muted">mdi-seat</v-icon>
               <span class="lbl">Asiento</span>
-              <span class="val">{{ selectedSeat || '—' }}</span>
+              <span class="val">{{ selectedSeatCode || '—' }}</span>
             </div>
           </div>
 
-          <!-- ACCIONES -->
+          <!-- ACCIONES DINÁMICAS -->
           <div class="cd-actions">
+            <!-- ASIGNAR ASIENTO (NO TIENE ASIENTO) -->
             <v-btn
+              v-if="!selectedSeatCode"
               variant="tonal"
               color="primary"
               prepend-icon="mdi-seat"
               class="cd-action"
               @click="emit('assign-seat', selectedId)"
             >
-              Asignar / editar asiento
+              Asignar asiento
             </v-btn>
 
+            <!-- CAMBIAR ASIENTO (TIENE ASIENTO) -->
             <v-btn
+              v-if="selectedSeatCode"
+              variant="tonal"
+              color="primary"
+              prepend-icon="mdi-seat"
+              class="cd-action"
+              @click="emit('assign-seat', selectedId)"
+            >
+              Cambiar asiento
+            </v-btn>
+
+            <!-- LIBERAR ASIENTO (TIENE ASIENTO) -->
+            <v-btn
+              v-if="selectedSeatCode"
               variant="tonal"
               color="warning"
               prepend-icon="mdi-seat-passenger"
               class="cd-action"
-              :disabled="!selectedSeat || releasing"
+              :disabled="releasing"
               :loading="releasing"
               @click="confirmRelease = true"
             >
               Liberar asiento
             </v-btn>
+
+            <!-- QUITAR PRESENTE (SÓLO SI ESTÁ PRESENTE) -->
+            <v-btn
+              v-if="isAlreadyPresent"
+              variant="tonal"
+              color="error"
+              prepend-icon="mdi-close-circle-outline"
+              class="cd-action"
+              :disabled="unmarking"
+              :loading="unmarking"
+              @click="onUnmarkPresent"
+            >
+              Quitar presente
+            </v-btn>
           </div>
         </v-sheet>
       </v-expand-transition>
 
-      <!-- ===== FEEDBACK ===== -->
+      <!-- ===== FEEDBACK CHECK-IN OK ===== -->
       <v-expand-transition>
-        <div v-if="showSuccess" class="success-banner" role="status" aria-live="polite">
+        <div
+          v-if="showSuccess"
+          class="success-banner"
+          role="status"
+          aria-live="polite"
+        >
           <div class="icon-wrap"><v-icon size="28">mdi-check-circle</v-icon></div>
           <div class="msg-wrap">
             <div class="title">Asistencia registrada</div>
@@ -221,26 +309,13 @@
         </div>
       </v-expand-transition>
 
-      <transition name="fade-slide">
-        <v-alert
-          v-if="message"
-          :type="messageType"
-          class="mt-3"
-          variant="tonal"
-          density="comfortable"
-          border="start"
-          rounded="lg"
-        >
-          {{ message }}
-        </v-alert>
-      </transition>
-
+      <!-- Snackbar -->
       <v-snackbar v-model="snackbar.open" location="top right" :timeout="2200">
         {{ snackbar.text }}
       </v-snackbar>
     </v-card-text>
 
-    <!-- ===== DIALOGO CONFIRMAR LIBERAR ===== -->
+    <!-- ===== DIALOGO CONFIRMAR LIBERAR ASIENTO ===== -->
     <v-dialog v-model="confirmRelease" max-width="420">
       <v-card rounded="xl">
         <v-card-title class="pt-4 pb-0">
@@ -248,13 +323,15 @@
           Confirmar liberación
         </v-card-title>
         <v-card-text class="pt-2">
-          ¿Liberar el asiento <strong>{{ selectedSeat }}</strong> para
+          ¿Liberar el asiento <strong>{{ selectedSeatCode }}</strong> para
           <strong>{{ selected?.title }}</strong>?
         </v-card-text>
         <v-card-actions class="px-4 pb-4">
           <v-spacer />
           <v-btn variant="text" @click="confirmRelease = false">Cancelar</v-btn>
-          <v-btn color="warning" :loading="releasing" @click="onReleaseSeat">Liberar</v-btn>
+          <v-btn color="warning" :loading="releasing" @click="onReleaseSeat">
+            Liberar
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -266,54 +343,81 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useDisplay } from 'vuetify'
 import { useSeatsStore } from '../stores'
 
-/* Eventos hacia la vista */
-const emit = defineEmits(['checked-in', 'error', 'assign-seat', 'release-seat', 'seat-released'])
+/* Eventos al padre */
+const emit = defineEmits([
+  'checked-in',
+  'error',
+  'assign-seat',
+  'release-seat',
+  'seat-released',
+  'presence-removed'
+])
 
 const { smAndDown } = useDisplay()
 const store = useSeatsStore()
 
-/* Estado general */
+/* Estado base */
 const loading = ref(false)
 const submitting = ref(false)
 const releasing = ref(false)
+const unmarking = ref(false) // 👈 nuevo: para "Quitar presente"
 const search = ref('')
 const selected = ref(null)
 
-/* Datos de la persona seleccionada */
-const selectedSeat = ref(null)
+/* Persona seleccionada */
+const selectedSeatCode = ref(null)
+const selectedSeatId = ref(null)
 const selectedPresent = ref(false)
 const selectedDoc = ref('')
 const selectedOrg = ref('')
 
-/* Feedback */
-const message = ref('')
-const messageType = ref('info')
+/* Feedback UI */
 const showSuccess = ref(false)
 const lastSeat = ref(null)
 const snackbar = ref({ open: false, text: '' })
 
-/* Dialogo liberar */
+/* Diálogo liberar asiento */
 const confirmRelease = ref(false)
 
 /* Responsivo */
-const menuProps = computed(() => ({ maxHeight: smAndDown.value ? 320 : 380, offset: smAndDown.value ? 6 : 8 }))
+const menuProps = computed(() => ({
+  maxHeight: smAndDown.value ? 320 : 380,
+  offset: smAndDown.value ? 6 : 8
+}))
 const avatarSize = computed(() => (smAndDown.value ? 28 : 32))
 
 onMounted(async () => {
   loading.value = true
-  try { await store.ensureLoaded?.() } finally { loading.value = false }
+  try {
+    await store.ensureLoaded?.()
+  } finally {
+    loading.value = false
+  }
 })
 
 /* Helpers */
-const norm = (s = '') => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
-const initials = (name = '') => String(name).trim().split(/\s+/).slice(0, 2).map(x => x[0]?.toUpperCase() ?? '').join('')
+const norm = (s = '') =>
+  s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
 
-/* Items desde store */
+const initials = (name = '') =>
+  String(name)
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map(x => x[0]?.toUpperCase() ?? '')
+    .join('')
+
+/* Items para el autocomplete */
 const items = computed(() =>
   (store.people ?? []).map(p => ({
     title: p.name,
     value: p.id,
-    seat: p.seat || null,
+    seatId: p.seatId ?? p.seat_id ?? null,
+    seatCode: p.seatCode ?? p.seat ?? null,
     present: !!p.present,
     subtitle: [p.org, p.doc].filter(Boolean).join(' · ') || '—',
     doc: p.doc || '',
@@ -322,51 +426,58 @@ const items = computed(() =>
   }))
 )
 
-/* Derivados */
 const selectedId = computed(() => selected.value?.value ?? null)
 const isAlreadyPresent = computed(() => !!selectedPresent.value)
 
-/* Filtro local */
+/* chip de estado */
+const chipText = computed(() => {
+  if (isAlreadyPresent.value) return 'Presente'
+  if (selectedSeatCode.value) return 'Asignado'
+  return 'Sin asiento'
+})
+
+/* filtro local */
 function filterFn (_title, _query, item) {
   const q = norm(search.value)
   if (!q) return true
   return item?.raw?._keywords?.includes(q)
 }
 
-/* Selección */
+/* al seleccionar una persona */
 function onSelected (obj) {
-  selectedSeat.value = obj?.seat || null
+  selectedSeatCode.value = obj?.seatCode || null
+  selectedSeatId.value = obj?.seatId || null
   selectedPresent.value = !!obj?.present
   selectedDoc.value = obj?.doc || ''
   selectedOrg.value = obj?.org || ''
   showSuccess.value = false
-  message.value = ''
-  messageType.value = 'info'
+  snackbar.value.open = false
 }
 
-/* Limpiar al borrar búsqueda */
+/* si limpio la búsqueda -> limpio todo */
 watch(search, v => {
   if (!v) {
     selected.value = null
-    selectedSeat.value = null
+    selectedSeatCode.value = null
+    selectedSeatId.value = null
     selectedPresent.value = false
     selectedDoc.value = ''
     selectedOrg.value = ''
     showSuccess.value = false
-    message.value = ''
+    snackbar.value.open = false
   }
 })
 
-/* Registrar asistencia */
+/* marcar presente */
 async function onSubmit () {
   if (!selected.value) return
 
-  // anti doble registro (UI + store)
-  const personInStore = (store.people ?? []).find(p => p.id === selectedId.value)
+  // anti doble marcado
+  const personInStore = (store.people ?? []).find(
+    p => p.id === selectedId.value
+  )
   const already = selectedPresent.value || !!personInStore?.present
   if (already) {
-    messageType.value = 'info'
-    message.value = 'Esta persona ya fue registrada como presente.'
     snackbar.value = { open: true, text: 'Ya estaba presente.' }
     return
   }
@@ -377,108 +488,237 @@ async function onSubmit () {
     const p = await store.checkInById?.(id)
 
     if (p) {
-      selectedSeat.value = p.seat || null
-      selectedPresent.value = !!p.present
-      selectedDoc.value = p.doc || selectedDoc.value
-      selectedOrg.value = p.org || selectedOrg.value
-      selected.value = {
-        title: p.name, value: p.id, seat: p.seat, present: p.present,
-        subtitle: [p.org, p.doc].filter(Boolean).join(' · ') || '—',
-        doc: p.doc, org: p.org
-      }
+      syncFromPerson(p)
     }
 
-    lastSeat.value = p?.seat || selectedSeat.value || null
+    lastSeat.value = selectedSeatCode.value || null
     showSuccess.value = true
-    messageType.value = 'success'
-    message.value = `Asistencia registrada${lastSeat.value ? ` · Asiento ${lastSeat.value}.` : '.'}`
     snackbar.value = { open: true, text: 'Check-in confirmado ✅' }
 
     emit('checked-in', { person: p ?? selected.value })
   } catch (e) {
-    const msg = e?.response?.data?.message || e?.message || 'Error al registrar asistencia.'
-    messageType.value = 'error'
-    message.value = msg
     snackbar.value = { open: true, text: 'No se pudo registrar' }
-    emit('error', { message: msg })
+    emit('error', {
+      message:
+        e?.response?.data?.message ||
+        e?.message ||
+        'Error al registrar asistencia.'
+    })
   } finally {
     submitting.value = false
   }
 }
 
-/* Liberar asiento (funcional + feedback + emisión) */
+/* helper: probar variantes de métodos del store */
+async function tryCall (name, ...args) {
+  const fn = store?.[name]
+  if (typeof fn !== 'function') return undefined
+  try {
+    return await fn(...args)
+  } catch (err) {
+    if (process?.env?.NODE_ENV !== 'production') {
+      console.warn(`[CheckInForm] ${name}() falló:`, err)
+    }
+    return undefined
+  }
+}
+
+/* liberar asiento */
 async function onReleaseSeat () {
-  if (!selectedId.value || !selectedSeat.value) {
+  if (!selectedId.value || !selectedSeatCode.value) {
     confirmRelease.value = false
     return
   }
   releasing.value = true
   try {
-    const id = selectedId.value
+    const personId = selectedId.value
+    const seatId = selectedSeatId.value
+    const seatCode = selectedSeatCode.value
 
-    // intentos según nombres típicos de método
-    const released =
-      (await store.releaseSeatById?.(id)) ??
-      (await store.freeSeatById?.(id)) ??
-      (await store.unassignSeatById?.(id)) ??
-      null
+    const attempts = [
+      () => tryCall('releaseSeatById', personId),
+      () => tryCall('freeSeatById', personId),
+      () => tryCall('unassignSeatById', personId),
+      () => tryCall('releaseSeatByPersonId', personId),
+      () => tryCall('releaseSeat', { personId, seatId, seatCode }),
+      () => tryCall('freeSeat', { personId, seatId, seatCode }),
+      () => tryCall('unassignSeat', { personId, seatId, seatCode }),
+      () => tryCall('assignSeat', personId, null),
+      () => tryCall('setSeat', personId, null),
+      () => (seatId ? tryCall('releaseSeatBySeatId', seatId) : undefined)
+    ]
 
-    // Actualizo local: sin asiento, puede seguir presente o no (depende backend)
-    selectedSeat.value = null
+    let released
+    for (const run of attempts) {
+      // eslint-disable-next-line no-await-in-loop
+      released = await run()
+      if (released !== undefined) break
+    }
+
+    // actualizar UI local después de liberar
+    selectedSeatCode.value = null
+    selectedSeatId.value = null
     if (released && typeof released.present === 'boolean') {
       selectedPresent.value = released.present
     }
 
-    // Reflejo en item seleccionado
+    // reflejar cambios en el seleccionado actual
     selected.value = {
       ...selected.value,
-      seat: null,
+      seatId: null,
+      seatCode: null,
       present: selectedPresent.value,
-      subtitle: [selectedOrg.value, selectedDoc.value].filter(Boolean).join(' · ') || '—'
+      subtitle:
+        [selectedOrg.value, selectedDoc.value]
+          .filter(Boolean)
+          .join(' · ') || '—'
     }
 
+    await (store.reload?.() ||
+      store.ensureLoaded?.() ||
+      Promise.resolve())
+
     snackbar.value = { open: true, text: 'Asiento liberado' }
-    messageType.value = 'success'
-    message.value = 'El asiento fue liberado correctamente.'
-    emit('seat-released', { id, person: released ?? selected.value })
-    emit('release-seat', id) // compat
+
+    emit('seat-released', {
+      id: personId,
+      person: released ?? selected.value
+    })
+    emit('release-seat', personId)
   } catch (e) {
-    const msg = e?.response?.data?.message || e?.message || 'No se pudo liberar el asiento.'
-    messageType.value = 'error'
-    message.value = msg
     snackbar.value = { open: true, text: 'Error al liberar' }
-    emit('error', { message: msg })
+    emit('error', {
+      message:
+        e?.response?.data?.message ||
+        e?.message ||
+        'No se pudo liberar el asiento.'
+    })
   } finally {
     releasing.value = false
     confirmRelease.value = false
   }
 }
+
+/* quitar presente */
+async function onUnmarkPresent () {
+  if (!selectedId.value || !isAlreadyPresent.value) return
+  unmarking.value = true
+  try {
+    const personId = selectedId.value
+
+    // probamos métodos posibles del store
+    const attempts = [
+      () => tryCall('uncheckInById', personId),
+      () => tryCall('checkoutById', personId),
+      () => tryCall('markNotPresentById', personId),
+      () => tryCall('setPresent', personId, false),
+      () => tryCall('togglePresent', { personId, present: false })
+    ]
+
+    let updated
+    for (const run of attempts) {
+      // eslint-disable-next-line no-await-in-loop
+      updated = await run()
+      if (updated !== undefined) break
+    }
+
+    // si la API devolvió persona actualizada, la usamos
+    if (updated) {
+      syncFromPerson(updated)
+    } else {
+      // si no devolvió nada asumimos que lo desmarcó
+      selectedPresent.value = false
+    }
+
+    snackbar.value = { open: true, text: 'Presencia removida' }
+
+    emit('presence-removed', {
+      id: personId,
+      person: updated ?? selected.value
+    })
+  } catch (e) {
+    snackbar.value = { open: true, text: 'No se pudo quitar presente' }
+    emit('error', {
+      message:
+        e?.response?.data?.message ||
+        e?.message ||
+        'Error al quitar presente.'
+    })
+  } finally {
+    unmarking.value = false
+  }
+}
+
+/* sync helper: trae datos de una persona devuelta por backend y actualiza UI */
+function syncFromPerson (p) {
+  selectedSeatCode.value = p.seatCode ?? p.seat ?? null
+  selectedSeatId.value = p.seatId ?? p.seat_id ?? selectedSeatId.value ?? null
+  selectedPresent.value = !!p.present
+  selectedDoc.value = p.doc || selectedDoc.value
+  selectedOrg.value = p.org || selectedOrg.value
+
+  selected.value = {
+    title: p.name,
+    value: p.id,
+    seatId: p.seatId ?? p.seat_id ?? null,
+    seatCode: p.seatCode ?? p.seat ?? null,
+    present: p.present,
+    subtitle: [p.org, p.doc].filter(Boolean).join(' · ') || '—',
+    doc: p.doc,
+    org: p.org
+  }
+}
 </script>
 
 <style scoped>
-/* ===== Layout base ===== */
 .ck-wrap { overflow: hidden; }
 .ck-header {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:16px 18px; gap:12px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:16px 18px;
+  gap:12px;
   background: linear-gradient(135deg, rgba(10,69,107,.10), rgba(215,219,69,.06));
 }
-.ck-title { font-weight:700; font-size:clamp(1rem, .96rem + .3vw, 1.12rem); letter-spacing:.2px; }
+.ck-title {
+  font-weight:700;
+  font-size:clamp(1rem, .96rem + .3vw, 1.12rem);
+  letter-spacing:.2px;
+}
 .ck-h-left { display:flex; align-items:center; }
-.ck-h-chip { font-weight:600; }
 .ck-divider { opacity:.08; }
 
 .ck-body { padding:18px; }
-.ck-form { display:grid; grid-template-columns: 1fr minmax(180px, 240px); gap:12px; }
+.ck-form {
+  display:grid;
+  grid-template-columns: 1fr minmax(180px, 240px);
+  gap:12px;
+}
 .ck-search :deep(.v-field) { border-radius:14px !important; }
 .ck-search :deep(.v-field__outline) { --v-field-border-width:2px; }
 .ck-search :deep(.v-input__control){ transition: transform .15s ease; }
 .ck-search:focus-within :deep(.v-input__control){ transform: translateY(-1px); }
 
-/* ===== Dropdown items ===== */
+.already-wrap {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.already-chip {
+  width:100%;
+  font-weight:600;
+  justify-content:center;
+  text-transform:uppercase;
+  letter-spacing:.3px;
+}
+
+/* dropdown items */
 .ck-item :deep(.v-list-item-title),
 .ck-item :deep(.v-list-item-subtitle){
-  max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
 .row-title{ display:inline-flex; align-items:center; min-width:0; }
 .name{ font-weight:600; }
@@ -493,7 +733,7 @@ async function onReleaseSeat () {
 .sel-wrap{ display:inline-flex; align-items:center; min-width:0; max-width:100%; }
 .sel-wrap > span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-/* ===== Detail card ===== */
+/* detail card */
 .cd-card{
   margin-top:14px;
   padding:16px;
@@ -503,7 +743,11 @@ async function onReleaseSeat () {
   border-radius: 20px;
 }
 .cd-head{
-  display:flex; align-items:center; justify-content:space-between; gap:12px; min-width:0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  min-width:0;
 }
 .cd-ident{ display:flex; align-items:center; gap:12px; min-width:0; }
 .cd-namewrap{ min-width:0; }
@@ -514,50 +758,73 @@ async function onReleaseSeat () {
 .cd-divider{ opacity:.08; margin:10px 0; }
 
 .cd-grid{
-  display:grid; gap:10px 16px;
+  display:grid;
+  gap:10px 16px;
   grid-template-columns: repeat(4, minmax(0,1fr));
 }
 .cd-field{
-  display:flex; align-items:center; gap:6px; min-width:0;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  min-width:0;
 }
 .cd-field .lbl{ opacity:.7; font-size:.85rem; }
 .cd-field .val{ font-weight:700; }
 
-/* Acciones: pegadas abajo y responsivas */
+/* acciones */
 .cd-actions{
-  display:grid; grid-template-columns: repeat(2, minmax(0, 220px));
-  gap:10px; justify-content:flex-start; margin-top:12px;
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px,100%), 1fr));
+  gap:10px;
+  justify-content:flex-start;
+  margin-top:12px;
 }
 .cd-action{ width:100%; }
 
-/* Botón principal */
-.ck-primary{ background:linear-gradient(135deg,#0a456b,#0a456b); color:#fff; letter-spacing:.3px; }
+/* botón REGISTRAR */
+.ck-primary{
+  background:linear-gradient(135deg,#0a456b,#0a456b);
+  color:#fff;
+  letter-spacing:.3px;
+  text-transform:uppercase;
+  font-weight:600;
+}
 
-/* Banner éxito */
+/* success banner */
 .success-banner{
-  display:flex; align-items:center; gap:12px;
-  padding:14px 16px; border-radius:14px; margin-top:14px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:14px 16px;
+  border-radius:14px;
+  margin-top:14px;
   background:linear-gradient(135deg, rgba(46,125,50,.18), rgba(46,125,50,.12));
   border:1px solid rgba(46,125,50,.35);
   animation: pop-in .18s ease-out;
 }
-.icon-wrap{ width:36px; height:36px; border-radius:999px; display:grid; place-items:center; background:rgba(46,125,50,.25); }
+.icon-wrap{
+  width:36px;
+  height:36px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  background:rgba(46,125,50,.25);
+}
 .msg-wrap .title{ font-weight:700; }
 .msg-wrap .subtitle{ opacity:.9; }
-@keyframes pop-in{ from{ transform:scale(.98); opacity:0 } to{ transform:scale(1); opacity:1 } }
+@keyframes pop-in{
+  from{ transform:scale(.98); opacity:0 }
+  to{ transform:scale(1); opacity:1 }
+}
 
-/* Animaciones */
-.fade-slide-enter-active, .fade-slide-leave-active{ transition: all .18s ease; }
-.fade-slide-enter-from, .fade-slide-leave-to{ opacity:0; transform: translateY(-4px); }
-
-/* ===== Responsive ===== */
+/* responsive */
 @media (max-width: 1100px){
   .cd-grid{ grid-template-columns: repeat(3, minmax(0,1fr)); }
 }
 @media (max-width: 900px){
   .ck-form{ grid-template-columns: 1fr; }
   .cd-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .cd-actions{ grid-template-columns: 1fr; } /* botones full-width */
+  .cd-actions{ grid-template-columns: 1fr; }
 }
 @media (max-width: 600px){
   .ck-body{ padding:14px; }
