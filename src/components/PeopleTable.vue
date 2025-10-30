@@ -21,7 +21,7 @@
       <div class="table-wrap">
         <v-data-table
           :headers="headers"
-          :items="filteredLocal"
+          :items="filtered"
           item-key="id"
           :items-per-page="10"
           :height="tableHeight"
@@ -69,8 +69,8 @@
                     icon="mdi-account-check"
                     variant="text"
                     class="btn-icon"
-                    :disabled="item.present"
-                    @click="markPresentLocal(item.id)"
+                    :disabled="busy || item.present"
+                    @click="markPresent(item)"
                   />
                 </template>
               </v-tooltip>
@@ -83,8 +83,8 @@
                     icon="mdi-account-off"
                     variant="text"
                     class="btn-icon"
-                    :disabled="!item.present"
-                    @click="removePresentLocal(item.id)"
+                    :disabled="busy || !item.present"
+                    @click="removePresent(item)"
                   />
                 </template>
               </v-tooltip>
@@ -97,6 +97,7 @@
                     icon="mdi-seat-recline-extra"
                     variant="text"
                     class="btn-icon"
+                    :disabled="busy"
                     @click="openSeatPicker(item)"
                   />
                 </template>
@@ -110,8 +111,8 @@
                     icon="mdi-seat-outline"
                     variant="text"
                     class="btn-icon"
-                    :disabled="!item.seat"
-                    @click="clearSeatLocal(item.id)"
+                    :disabled="busy || !item.seat"
+                    @click="clearSeat(item)"
                   />
                 </template>
               </v-tooltip>
@@ -124,6 +125,7 @@
                     icon="mdi-pencil"
                     variant="text"
                     class="btn-icon"
+                    :disabled="busy"
                     @click="openEditDialog(item)"
                   />
                 </template>
@@ -138,6 +140,7 @@
                     variant="text"
                     color="error"
                     class="btn-icon"
+                    :disabled="busy"
                     @click="askRemove(item)"
                   />
                 </template>
@@ -154,6 +157,7 @@
                     v-bind="props"
                     :aria-label="'Acciones'"
                     class="btn-icon"
+                    :disabled="busy"
                   />
                 </template>
 
@@ -161,35 +165,38 @@
                   <v-list-item
                     prepend-icon="mdi-account-check"
                     title="Marcar presente"
-                    :disabled="item.present"
-                    @click="markPresentLocal(item.id)"
+                    :disabled="item.present || busy"
+                    @click="markPresent(item)"
                   />
                   <v-list-item
                     prepend-icon="mdi-account-off"
                     title="Quitar presente"
-                    :disabled="!item.present"
-                    @click="removePresentLocal(item.id)"
+                    :disabled="!item.present || busy"
+                    @click="removePresent(item)"
                   />
                   <v-list-item
                     prepend-icon="mdi-seat-recline-extra"
                     title="Asignar / cambiar asiento"
+                    :disabled="busy"
                     @click="openSeatPicker(item)"
                   />
                   <v-list-item
                     prepend-icon="mdi-seat-outline"
                     title="Desasignar asiento"
-                    :disabled="!item.seat"
-                    @click="clearSeatLocal(item.id)"
+                    :disabled="!item.seat || busy"
+                    @click="clearSeat(item)"
                   />
                   <v-list-item
                     prepend-icon="mdi-pencil"
                     title="Editar datos"
+                    :disabled="busy"
                     @click="openEditDialog(item)"
                   />
                   <v-list-item
                     prepend-icon="mdi-delete"
                     title="Eliminar"
                     class="text-error"
+                    :disabled="busy"
                     @click="askRemove(item)"
                   />
                 </v-list>
@@ -213,7 +220,7 @@
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" class="btn-text" @click="confirmOpen=false">Cancelar</v-btn>
-          <v-btn color="error" class="btn-strong" @click="doRemoveLocal">Eliminar</v-btn>
+          <v-btn color="error" class="btn-strong" :disabled="busy" @click="doRemove">Eliminar</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -223,7 +230,7 @@
       <v-card class="card-contrast">
         <v-card-title class="title-contrast">Editar datos</v-card-title>
         <v-card-text>
-          <v-form @submit.prevent="saveEditLocal">
+          <v-form @submit.prevent="saveEdit">
             <v-text-field
               v-model="editBuffer.name"
               label="Nombre"
@@ -256,7 +263,7 @@
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" class="btn-text" @click="editDialogOpen=false">Cancelar</v-btn>
-          <v-btn class="btn-strong" color="primary" @click="saveEditLocal">Guardar cambios</v-btn>
+          <v-btn class="btn-strong" color="primary" :disabled="busy" @click="saveEdit">Guardar cambios</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -280,12 +287,22 @@
         <v-card-text>
           <div class="grid-rows-wrap">
             <div class="grid-rows">
-              <div v-for="(row, rIdx) in seatsSnapshot" :key="rIdx" class="row">
+              <div
+                v-for="(row, rIdx) in store.seats"
+                :key="rIdx"
+                class="row"
+              >
                 <div class="row-label">{{ row[0][0] }}</div>
+
                 <v-btn
                   v-for="code in row"
                   :key="code"
-                  :class="['seat', seatStatus(code), { 'seat-selected': selectedSeat === code }]"
+                  :class="[
+                    'seat',
+                    seatStatusLocal(code),
+                    { 'seat-selected': selectedSeat === code }
+                  ]"
+                  :disabled="busy"
                   variant="flat"
                   size="small"
                   :aria-label="`Asiento ${code}`"
@@ -299,8 +316,10 @@
 
           <div class="mt-5 text-dim" v-if="selectedSeat">
             <div class="mb-1 font-weight-bold">
-              Asiento seleccionado: <span class="text-accent">{{ selectedSeat }}</span>
+              Asiento seleccionado:
+              <span class="text-accent">{{ selectedSeat }}</span>
             </div>
+
             <div v-if="currentHolder">
               Actualmente asignado a:
               <b>{{ currentHolder.name }}</b>
@@ -308,14 +327,24 @@
                 · {{ currentHolder.org || '—' }} · {{ currentHolder.doc || '—' }}
               </span>
             </div>
-            <div v-else>Este asiento está libre.</div>
+
+            <div v-else>
+              Este asiento está libre.
+            </div>
           </div>
         </v-card-text>
 
         <v-card-actions class="px-4 pb-4">
           <v-spacer />
-          <v-btn variant="text" class="btn-text" @click="seatPickerOpen=false">Cancelar</v-btn>
-          <v-btn class="btn-strong" color="primary" :disabled="!selectedSeat" @click="confirmAssignSeatLocal">
+          <v-btn variant="text" class="btn-text" :disabled="busy" @click="closeSeatPicker">
+            Cancelar
+          </v-btn>
+          <v-btn
+            class="btn-strong"
+            color="primary"
+            :disabled="busy || !selectedSeat"
+            @click="confirmAssignSeat"
+          >
             Confirmar
           </v-btn>
         </v-card-actions>
@@ -332,11 +361,6 @@ import { useSeatsStore } from '../stores'
 const { smAndDown } = useDisplay()
 const store = useSeatsStore()
 
-// 1. snapshot inicial — tomamos lo que hay AHORA en el store
-//    y después NO volvemos a leer automáticamente
-const peopleLocal = ref(store.people.map(p => ({ ...p })))
-const seatsSnapshot = ref(store.seats?.length ? store.seats : [['A1']]) // fallback mínimo
-
 /* =====================
    TABLA / FILTRO / UI
 ===================== */
@@ -351,10 +375,12 @@ const headers = [
 ]
 
 const q = ref('')
-const filteredLocal = computed(() => {
+const busy = ref(false)
+
+const filtered = computed(() => {
   const k = q.value.trim().toLowerCase()
-  if (!k) return peopleLocal.value
-  return peopleLocal.value.filter(p =>
+  if (!k) return store.people
+  return store.people.filter(p =>
     p.name?.toLowerCase().includes(k) ||
     (p.doc || '').toLowerCase().includes(k) ||
     (p.org || '').toLowerCase().includes(k) ||
@@ -364,96 +390,138 @@ const filteredLocal = computed(() => {
 
 const tableHeight = computed(() => (smAndDown.value ? 360 : 480))
 
-function seatStatus(code) {
-  return store.seatStatus ? store.seatStatus(code) : 'free'
+/* status visual de cada asiento según store.people actual */
+function seatStatusLocal(code) {
+  const holder = store.people.find(p => p.seat === code)
+  if (!holder) return 'free'
+  if (holder.present) return 'present'
+  return 'assigned'
 }
+
 function seatColor(code) {
-  const st = seatStatus(code)
+  const st = seatStatusLocal(code)
   return st === 'present'
     ? 'success'
     : st === 'assigned'
       ? 'warning'
       : undefined
 }
+
 function seatVariant(code) {
-  const st = seatStatus(code)
+  const st = seatStatusLocal(code)
   return st === 'free' ? 'outlined' : 'flat'
 }
 
-/* helper local para mutar snapshot */
-function patchLocal(id, patch) {
-  const idx = peopleLocal.value.findIndex(p => p.id === id)
+/* helper para mutar en memoria sin romper reactividad */
+function patchStore(id, patch) {
+  const idx = store.people.findIndex(p => p.id === id)
   if (idx === -1) return
-  peopleLocal.value[idx] = { ...peopleLocal.value[idx], ...patch }
+  store.people[idx] = { ...store.people[idx], ...patch }
 }
 
 /* =====================
-   PRESENCIA LOCAL
+   PRESENCIA
 ===================== */
-function markPresentLocal(id) {
-  patchLocal(id, {
-    present: true,
-    presentAt: new Date().toISOString()
-  })
-  // opcional: store.setPresent?.(id,true)
+async function markPresent(person) {
+  if (!person?.id) return
+  busy.value = true
+  try {
+    // usamos checkInById(id) que ya persiste y devuelve data fresca
+    const updated = await store.checkInById(person.id)
+    // store.checkInById ya actualiza store.people[idx] internamente
+    // igual refrescamos para estar seguros de sincronizar
+    await store.refresh()
+  } catch (err) {
+    console.error('markPresent error', err)
+  } finally {
+    busy.value = false
+  }
 }
 
-function removePresentLocal(id) {
-  patchLocal(id, {
-    present: false,
-    presentAt: null
-  })
-  // opcional: store.setPresent?.(id,false)
+async function removePresent(person) {
+  if (!person?.id) return
+  busy.value = true
+  try {
+    // persistimos { present:false }
+    await store.updatePerson(person.id, { present: false })
+    await store.refresh()
+  } catch (err) {
+    console.error('removePresent error', err)
+  } finally {
+    busy.value = false
+  }
 }
 
 /* =====================
-   ASIENTOS LOCAL
+   ASIENTOS
 ===================== */
 const seatPickerOpen = ref(false)
-const seatTarget = ref(null)
-const selectedSeat = ref(null)
+const seatTarget = ref(null)     // persona actual (obj dentro de store.people)
+const selectedSeat = ref(null)   // código de asiento seleccionado en el modal
 
 function openSeatPicker(person) {
-  seatTarget.value = { ...person }
+  seatTarget.value = person
   selectedSeat.value = person.seat || null
   seatPickerOpen.value = true
 }
 
-const currentHolder = computed(() => {
-  if (!selectedSeat.value) return null
-  // quién tiene ese asiento en la snapshot local:
-  return peopleLocal.value.find(p => p.seat === selectedSeat.value) || null
-})
-
-function confirmAssignSeatLocal() {
-  if (!seatTarget.value || !selectedSeat.value) return
-
-  // 1) si otro ya tenía ese asiento en local, se lo sacamos
-  const prevIdx = peopleLocal.value.findIndex(p => p.seat === selectedSeat.value && p.id !== seatTarget.value.id)
-  if (prevIdx !== -1) {
-    peopleLocal.value[prevIdx] = {
-      ...peopleLocal.value[prevIdx],
-      seat: null
-    }
-  }
-
-  // 2) seteamos el asiento nuevo a la persona objetivo
-  patchLocal(seatTarget.value.id, { seat: selectedSeat.value })
-
+function closeSeatPicker() {
   seatPickerOpen.value = false
   seatTarget.value = null
   selectedSeat.value = null
-
-  // opcional: store.assignSeat?.(id, seat)
 }
 
-function clearSeatLocal(id) {
-  patchLocal(id, { seat: null })
-  // opcional: store.clearSeat?.(id)
+const currentHolder = computed(() => {
+  if (!selectedSeat.value) return null
+  return store.people.find(p => p.seat === selectedSeat.value) || null
+})
+
+async function confirmAssignSeat() {
+  if (!seatTarget.value || !selectedSeat.value) return
+  busy.value = true
+
+  const targetId    = seatTarget.value.id
+  const newSeatCode = selectedSeat.value
+
+  try {
+    // 1. Buscar quién tiene actualmente ese asiento y sacárselo en backend también
+    const other = store.people.find(
+      p => p.id !== targetId && p.seat === newSeatCode
+    )
+    if (other) {
+      await store.updatePerson(other.id, { seat: null })
+    }
+
+    // 2. Asignar el asiento nuevo a la persona objetivo
+    await store.updatePerson(targetId, { seat: newSeatCode })
+
+    // 3. refrescar listado
+    await store.refresh()
+
+    closeSeatPicker()
+  } catch (err) {
+    console.error('confirmAssignSeat error', err)
+    // no cierro modal si falla para que el usuario reintente
+  } finally {
+    busy.value = false
+  }
+}
+
+async function clearSeat(person) {
+  if (!person?.id) return
+  busy.value = true
+  try {
+    await store.updatePerson(person.id, { seat: null })
+    await store.refresh()
+  } catch (err) {
+    console.error('clearSeat error', err)
+  } finally {
+    busy.value = false
+  }
 }
 
 /* =====================
-   EDITAR LOCAL
+   EDITAR PERSONA
 ===================== */
 const editDialogOpen = ref(false)
 const editBuffer = ref({ id: null, name: '', doc: '', org: '' })
@@ -468,19 +536,22 @@ function openEditDialog(person) {
   editDialogOpen.value = true
 }
 
-function saveEditLocal() {
-  patchLocal(editBuffer.value.id, {
-    name: editBuffer.value.name,
-    doc: editBuffer.value.doc,
-    org: editBuffer.value.org
-  })
-  editDialogOpen.value = false
-
-  // opcional: store.updatePerson?.(id,data)
+async function saveEdit() {
+  busy.value = true
+  try {
+    const { id, name, doc, org } = editBuffer.value
+    await store.updatePerson(id, { name, doc, org })
+    await store.refresh()
+    editDialogOpen.value = false
+  } catch (err) {
+    console.error('saveEdit error', err)
+  } finally {
+    busy.value = false
+  }
 }
 
 /* =====================
-   ELIMINAR LOCAL
+   ELIMINAR
 ===================== */
 const confirmOpen = ref(false)
 const toRemove = ref(null)
@@ -490,22 +561,28 @@ function askRemove(item) {
   confirmOpen.value = true
 }
 
-function doRemoveLocal() {
-  const idx = peopleLocal.value.findIndex(p => p.id === toRemove.value.id)
-  if (idx !== -1) {
-    peopleLocal.value.splice(idx, 1)
+async function doRemove() {
+  if (!toRemove.value?.id) {
+    confirmOpen.value = false
+    return
   }
-  confirmOpen.value = false
-  toRemove.value = null
-
-  // opcional: store.removePerson?.(id)
+  busy.value = true
+  try {
+    await store.removePerson(toRemove.value.id)
+    await store.refresh()
+  } catch (err) {
+    console.error('doRemove error', err)
+  } finally {
+    busy.value = false
+    confirmOpen.value = false
+    toRemove.value = null
+  }
 }
 </script>
 
 <style scoped>
-/* reutilizamos exactamente los estilos que ya tenés, sin cambios */
+/* === estilos exactamente como venías usando === */
 
-/* ===== Card / títulos ===== */
 .card-contrast {
   background: #0e1230 !important;
   border: 1px solid rgba(255, 217, 81, .14);
@@ -525,7 +602,6 @@ function doRemoveLocal() {
 .text-accent { color: #ffd951; font-weight: 700; }
 .nowrap { white-space: nowrap; }
 
-/* ===== Topbar / búsqueda ===== */
 .topbar {
   display: flex;
   align-items: center;
@@ -544,7 +620,6 @@ function doRemoveLocal() {
   color: #ffd951 !important;
 }
 
-/* ===== Tabla ===== */
 .table-wrap {
   width: 100%;
   overflow-x: auto;
