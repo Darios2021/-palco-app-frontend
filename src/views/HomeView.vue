@@ -43,15 +43,7 @@
                 </div>
               </div>
 
-              <div class="hero-badge mt-8 mt-md-0 ml-md-8">
-                <div class="badge-inner">
-                  <v-icon size="40">mdi-shield-check</v-icon>
-                  <div class="badge-text">
-                    <strong>Operativo</strong>
-                    <small>Optimizado para evento</small>
-                  </div>
-                </div>
-              </div>
+             
             </div>
           </v-card-text>
         </v-card>
@@ -105,29 +97,7 @@
       </v-col>
 
       <!-- ===== INFO BREVE ===== -->
-      <v-col cols="12" md="10" lg="9" class="mt-4">
-        <v-card rounded="xl" elevation="1" class="info-card">
-          <v-card-text class="py-6 px-6">
-            <div class="d-flex flex-column flex-md-row">
-              <div class="flex-grow-1">
-                <div class="info-title mb-2">
-                  ¿Qué podés hacer acá?
-                </div>
-                <ul class="info-list">
-                  <li>Controlar asistentes registrados y marcar presentes.</li>
-                  <li>Visualizar el mapa por filas y estados <span class="chip present">Presente</span>, <span class="chip assigned">Asignado</span> y <span class="chip free">Libre</span>.</li>
-                  <li>Asignar/editar asientos de manera segura y rápida.</li>
-                </ul>
-              </div>
-              <div class="mt-6 mt-md-0 ml-md-8">
-                <v-btn color="secondary" variant="tonal" :to="{ name: 'home' }" prepend-icon="mdi-information-outline">
-                  Ver guía rápida
-                </v-btn>
-              </div>
-            </div>
-          </v-card-text>
-        </v-card>
-      </v-col>
+     
     </v-row>
   </v-container>
 </template>
