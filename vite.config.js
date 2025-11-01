@@ -10,7 +10,7 @@ export default defineConfig({
     host: true,
     port: 5173,
     strictPort: true,
-    hmr: { host: '192.168.2.101', clientPort: 5173 },
+    hmr: { host: '192.168.2.100', clientPort: 5173 },
 
     // 🔁 Proxy útil solo si usás VITE_API_URL=/api en dev
     proxy: {
