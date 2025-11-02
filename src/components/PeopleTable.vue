@@ -30,7 +30,7 @@
           density="comfortable"
           class="people-table"
         >
-          <!-- PALCO -->
+          <!-- PALCO (derivado de la letra del asiento) -->
           <template #item.palco="{ item }">
             <span class="nowrap">
               {{ palcoNameFromSeat(item.seat) || '—' }}
@@ -277,103 +277,9 @@
       </v-card>
     </v-dialog>
 
-    <!-- MODAL PICKER DE ASIENTO -->
-    <v-dialog v-model="seatPickerOpen" max-width="640">
-      <v-card rounded="xl" class="card-contrast">
-        <v-card-title class="d-flex align-center flex-wrap gap-2 title-contrast">
-          <v-icon class="mr-2">mdi-seat</v-icon>
-          <span class="text-truncate">
-            {{ seatTarget?.name ? `Asignar asiento a ${seatTarget.name}` : 'Asignar asiento' }}
-          </span>
-          <v-spacer />
-          <div class="legend d-flex align-center gap-2">
-            <v-chip color="success" label size="small" class="chip-strong">Presente</v-chip>
-            <v-chip color="warning" label size="small" class="chip-strong">Asignado</v-chip>
-            <v-chip variant="outlined" label size="small" class="chip-outline">Libre</v-chip>
-          </div>
-        </v-card-title>
-
-        <v-card-text>
-          <!-- Selector visual del PALCO -->
-          <div class="mb-4 d-flex flex-wrap gap-2 palco-selector">
-            <v-chip
-              v-for="opt in palcoOptions"
-              :key="opt.key"
-              :color="pickerPalco === opt.key ? 'primary' : undefined"
-              :class="['chip-palco', { active: pickerPalco === opt.key }]"
-              label
-              size="small"
-              @click="pickerPalco = opt.key"
-            >
-              {{ opt.label }}
-            </v-chip>
-          </div>
-
-          <!-- GRID DE ASIENTOS DEL PALCO SELECCIONADO -->
-          <div class="grid-rows-wrap">
-            <div class="grid-rows">
-              <div
-                v-for="(row, rIdx) in rowsForPicker"
-                :key="rIdx"
-                class="row"
-              >
-                <div class="row-label">{{ row.letter }}</div>
-
-                <v-btn
-                  v-for="code in row.codes"
-                  :key="code"
-                  :class="[
-                    'seat',
-                    seatStatusLocal(code),
-                    { 'seat-selected': selectedSeat === code }
-                  ]"
-                  :disabled="busy"
-                  variant="flat"
-                  size="small"
-                  :aria-label="`Asiento ${code}`"
-                  @click="selectedSeat = code"
-                >
-                  {{ code }}
-                </v-btn>
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-5 text-dim" v-if="selectedSeat">
-            <div class="mb-1 font-weight-bold">
-              Asiento seleccionado:
-              <span class="text-accent">{{ selectedSeat }}</span>
-            </div>
-
-            <div v-if="currentHolder">
-              Actualmente asignado a:
-              <b>{{ currentHolder.name }}</b>
-              <span class="text-dim">
-                · {{ currentHolder.org || '—' }} · {{ currentHolder.doc || '—' }}
-              </span>
-            </div>
-
-            <div v-else>
-              Este asiento está libre.
-            </div>
-          </div>
-        </v-card-text>
-
-        <v-card-actions class="px-4 pb-4">
-          <v-spacer />
-          <v-btn variant="text" class="btn-text" :disabled="busy" @click="closeSeatPicker">
-            Cancelar
-          </v-btn>
-          <v-btn
-            class="btn-strong"
-            color="primary"
-            :disabled="busy || !selectedSeat"
-            @click="confirmAssignSeat"
-          >
-            Confirmar
-          </v-btn>
-        </v-card-actions>
-      </v-card>
+    <!-- MODAL PICKER DE ASIENTO (usa data viva de adminpalco) -->
+    <v-dialog v-model="seatPickerOpen" max-width="900">
+      <SeatPickerDialog @select="handleConfirmSeat" />
     </v-dialog>
   </v-card>
 </template>
@@ -382,6 +288,7 @@
 import { computed, ref } from 'vue'
 import { useDisplay } from 'vuetify'
 import { useSeatsStore } from '../stores'
+import SeatPickerDialog from './SeatPickerDialog.vue'
 
 const { smAndDown } = useDisplay()
 const store = useSeatsStore()
@@ -414,13 +321,13 @@ function palcoNameFromSeat(seatCode) {
   return '—'
 }
 
-/* También clave para el picker: nos da el palco KEY */
+/* También clave para el picker inicial */
 function palcoKeyFromSeat(seatCode) {
-  if (!seatCode) return 'P' // default si no tiene asiento: principal? lo forzamos más abajo
+  if (!seatCode) return 'P'
   const first = String(seatCode).charAt(0).toUpperCase()
   if ('HIJKL'.includes(first))   return 'A'
   if ('MNOPQ'.includes(first))   return 'B'
-  return 'P' // ABCDEFG => principal
+  return 'P'
 }
 
 /* =====================
@@ -472,89 +379,36 @@ function seatVariant(code) {
 }
 
 /* =====================
-   ASIENTOS - PICKER
+   ASIGNACIÓN DE ASIENTO
 ===================== */
 const seatPickerOpen = ref(false)
-const seatTarget = ref(null)        // persona objetivo
-const selectedSeat = ref(null)      // asiento elegido dentro del modal
-const pickerPalco = ref('P')        // 'P' = Principal, 'A' = Palco A, 'B' = Palco B
+const seatTarget = ref(null) // persona objetivo
 
-// opciones de palco para las chips
-const palcoOptions = [
-  { key: 'A', label: 'PALCO A' },
-  { key: 'P', label: 'PRINCIPAL' },
-  { key: 'B', label: 'PALCO B' },
-]
-
-// generador de estructura de filas para cada palco
-function genPalco(letters, perRow) {
-  return letters.map(letter => {
-    const codes = []
-    for (let i = 1; i <= perRow; i++) {
-      codes.push(`${letter}${i}`)
-    }
-    return { letter, codes }
-  })
-}
-
-// definimos los 3 mapas
-const palcoAmap        = genPalco(['L','K','J','I','H'], 10)
-const palcoPrincipalMap = genPalco(['G','F','E','D','C','B','A'], 12)
-const palcoBmap        = genPalco(['Q','P','O','N','M'], 10)
-
-// filas que se van a renderizar según pickerPalco
-const rowsForPicker = computed(() => {
-  if (pickerPalco.value === 'A') return palcoAmap
-  if (pickerPalco.value === 'B') return palcoBmap
-  return palcoPrincipalMap
-})
-
-// persona que ya tiene ese asiento?
-const currentHolder = computed(() => {
-  if (!selectedSeat.value) return null
-  return store.people.find(p => p.seat === selectedSeat.value) || null
-})
-
-// abrir modal
 function openSeatPicker(person) {
-  seatTarget.value   = person
-  selectedSeat.value = person.seat || null
-  // seteamos palco inicial según su asiento actual
-  pickerPalco.value  = palcoKeyFromSeat(person.seat)
+  seatTarget.value    = person
   seatPickerOpen.value = true
 }
 
-// cerrar modal
-function closeSeatPicker() {
-  seatPickerOpen.value = false
-  seatTarget.value = null
-  selectedSeat.value = null
-}
-
-// confirmar cambio / asignación
-async function confirmAssignSeat() {
-  if (!seatTarget.value || !selectedSeat.value) return
+// confirmar asiento que vino del dialog hijo
+async function handleConfirmSeat(seatCode) {
+  if (!seatTarget.value || !seatCode) return
   busy.value = true
-
-  const targetId    = seatTarget.value.id
-  const newSeatCode = selectedSeat.value
-
   try {
-    // liberar a otra persona que ya lo tenga
+    // liberar si otro lo tenía
     const other = store.people.find(
-      p => p.id !== targetId && p.seat === newSeatCode
+      p => p.id !== seatTarget.value.id && p.seat === seatCode
     )
     if (other) {
       await store.updatePerson(other.id, { seat: null })
     }
 
-    // asignar a la persona actual
-    await store.updatePerson(targetId, { seat: newSeatCode })
+    // asignar al seleccionado
+    await store.updatePerson(seatTarget.value.id, { seat: seatCode })
 
     await store.refresh()
-    closeSeatPicker()
+    seatPickerOpen.value = false
   } catch (err) {
-    console.error('confirmAssignSeat error', err)
+    console.error('handleConfirmSeat error', err)
   } finally {
     busy.value = false
   }
@@ -780,74 +634,7 @@ async function doRemove() {
   font-weight: 800;
 }
 
-/* Chips palco selector */
-.palco-selector {
-  gap: 6px;
-}
-.chip-palco {
-  background: rgba(255,217,81,.07) !important;
-  border: 1px solid rgba(255,217,81,.24) !important;
-  color: #ffd951 !important;
-  font-weight: 600 !important;
-  cursor: pointer;
-}
-.chip-palco.active {
-  background: rgba(255,217,81,.3) !important;
-  color: #0b0d28 !important;
-  border-color: rgba(255,217,81,.5) !important;
-  box-shadow: 0 8px 20px rgba(0,0,0,.6);
-}
-
-.legend { gap: 6px; }
-
-.grid-rows-wrap {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 6px;
-}
-.grid-rows {
-  display: flex;
-  flex-direction: column-reverse;
-  gap: 12px;
-  min-width: max(560px, 100%);
-}
-.row {
-  display: grid;
-  grid-auto-flow: column;
-  grid-template-columns: 44px repeat(12, 68px);
-  gap: 8px;
-  align-items: center;
-}
-.row-label {
-  position: sticky;
-  left: 0;
-  z-index: 1;
-  text-align: center;
-  font-weight: 800;
-  color: #0b0d28;
-  background: #ffd951;
-  border: 1px solid rgba(255,217,81,.45);
-  box-shadow: 0 2px 6px rgba(0,0,0,.25);
-  border-radius: 10px;
-  padding: 6px 0;
-  width: 44px;
-}
-.seat {
-  min-width: 58px;
-  height: 36px;
-  border-radius: 18px;
-  font-weight: 700;
-  text-transform: none;
-  box-shadow: 0 1px 2px rgba(0,0,0,.25);
-}
-.seat.present  { background: #4caf50 !important; color: #fff !important; }
-.seat.assigned { background: #ffb300 !important; color: #0b0d28 !important; }
-.seat.free     { background: #f3f5f9 !important; color: #0b0d28 !important; }
-.seat-selected {
-  outline: 2px solid #ffd951;
-  outline-offset: 0;
-  box-shadow: 0 0 8px rgba(255,217,81,.75);
-}
+/* seat picker legend pills already styled in child */
 
 .edit-field :deep(.v-field) {
   background: rgba(255,255,255,0.06) !important;
@@ -864,24 +651,6 @@ async function doRemove() {
     min-width: auto;
     flex-wrap: wrap;
     gap: 6px;
-  }
-  .grid-rows {
-    gap: 10px;
-    min-width: max(480px, 100%);
-  }
-  .row {
-    grid-template-columns: 36px repeat(12, 60px);
-    gap: 6px;
-  }
-  .row-label {
-    width: 36px;
-    padding: 4px 0;
-  }
-  .seat {
-    min-width: 54px;
-    height: 32px;
-    border-radius: 16px;
-    font-size: 0.9rem;
   }
   .people-table :deep(thead th) {
     font-size: 0.7rem;
