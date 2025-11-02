@@ -862,20 +862,44 @@ function exportCSV() {
   font-weight: 700 !important;
 }
 
-/* ===========================
-   DESKTOP GRID: 3 PALCOS
-=========================== */
+/* =========================================================
+   LAYOUT DE LOS 3 PALCOS (DESKTOP / TABLET)
+   OBJETIVO: USAR TODO EL ANCHO, SIN DEJARLOS APLASTADOS
+   ========================================================= */
 .palcos-layout {
   display: grid;
-  grid-template-columns: minmax(200px, 1fr) minmax(320px, 2fr) minmax(200px, 1fr);
-  gap: 16px;
+  /* proporción 1 / 2 / 1 */
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: 24px;
+  width: 100%;
+  max-width: 100%;
 }
-@media (max-width: 900px) {
+
+/* pantallas muy grandes */
+@media (min-width: 1440px) {
   .palcos-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1.1fr 2fr 1.1fr;
+    gap: 32px;
   }
 }
 
+/* notebooks / medianas */
+@media (max-width: 1100px) {
+  .palcos-layout {
+    grid-template-columns: 1fr 1.6fr 1fr;
+    gap: 20px;
+  }
+}
+
+/* <900px: stack */
+@media (max-width: 900px) {
+  .palcos-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+/* cada bloque de palco */
 .palco-block {
   background: rgba(11,13,40,.5);
   border: 1px solid rgba(255,217,81,.14);
@@ -885,6 +909,7 @@ function exportCSV() {
   flex-direction: column;
   min-width: 0;
 }
+
 .palco-header {
   padding: 12px 16px;
   background: #1a1d38;
@@ -909,6 +934,7 @@ function exportCSV() {
 .palco-title {
   line-height: 1.2;
 }
+
 .palco-body {
   padding: 16px;
   overflow-x: auto;
@@ -917,6 +943,7 @@ function exportCSV() {
   padding: 0 16px 16px;
   background: #0f122a;
 }
+
 .palco-footer {
   font-size: .7rem;
   line-height: 1.2;
@@ -928,7 +955,9 @@ function exportCSV() {
   letter-spacing: .05em;
 }
 
-/* MOBILE: TABS */
+/* =========================================================
+   MOBILE: TABS
+   ========================================================= */
 .palcos-tabs-wrap {
   display: flex;
   flex-direction: column;
@@ -960,7 +989,9 @@ function exportCSV() {
   background: transparent;
 }
 
-/* GRID FILAS + ASIENTOS */
+/* =========================================================
+   GRID FILAS + ASIENTOS DENTRO DE CADA PALCO
+   ========================================================= */
 .grid-rows-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -972,11 +1003,19 @@ function exportCSV() {
   gap: 12px;
   min-width: max(480px, 100%);
 }
+
+/* >>>> AJUSTE CLAVE ACA <<<<
+   - bajamos el min ancho de cada asiento
+   - bajamos altura
+   - bajamos la columna de letra
+   Con esto todo el bloque del palco es un poco más "compacto" horizontalmente.
+*/
 .row {
   display: grid;
   grid-auto-flow: column;
-  grid-template-columns: 44px repeat(auto-fit, minmax(60px, 1fr));
-  gap: 8px;
+  /* <<< ajustado: row-label + butacas más angostas */
+  grid-template-columns: 38px repeat(auto-fit, minmax(54px, 1fr)); /* antes 44px / 60px */
+  gap: 6px; /* antes 8px */
   align-items: center;
 }
 
@@ -991,27 +1030,28 @@ function exportCSV() {
   background: #ffd951;
   border: 1px solid rgba(255,217,81,.45);
   box-shadow: 0 2px 6px rgba(0,0,0,.25);
-  border-radius: 10px;
-  padding: 6px 0;
-  width: 44px;
-  font-size: .8rem;
+  border-radius: 8px;              /* <<< ajustado: 10px -> 8px para ganar aire */
+  padding: 5px 0;                  /* <<< ajustado: 6px -> 5px */
+  width: 38px;                     /* <<< ajustado: 44px -> 38px */
+  font-size: .75rem;               /* <<< ajustado: .8rem -> .75rem */
   line-height: 1.2;
 }
 
-/* píldoras asiento */
+/* asiento píldora */
 .seat {
-  min-width: 58px;
-  height: 36px;
-  border-radius: 18px;
+  min-width: 54px;                 /* <<< ajustado: 58px -> 54px */
+  height: 32px;                    /* <<< ajustado: 36px -> 32px */
+  border-radius: 16px;             /* <<< ajustado: 18px -> 16px */
   font-weight: 700;
   text-transform: none;
   box-shadow: 0 1px 2px rgba(0,0,0,.25);
   background: #f3f5f9 !important;
   color: #0b0d28 !important;
   border: 0 !important;
-  font-size: .8rem;
+  font-size: .75rem;               /* <<< ajustado: .8rem -> .75rem */
   line-height: 1.2;
   justify-content: center;
+  padding: 0 8px;                  /* <<< agregado para que no crezca innecesario */
 }
 .seat.present  {
   background: #4caf50 !important;
@@ -1021,12 +1061,12 @@ function exportCSV() {
   background: #ffb300 !important;
   color: #0b0d28 !important;
 }
-.seat.free     {
+.seat.free {
   background: #f3f5f9 !important;
   color: #0b0d28 !important;
 }
 
-/* LEYENDA ESTADOS */
+/* leyenda estado */
 .legend {
   display: flex;
   align-items: center;
@@ -1057,7 +1097,9 @@ function exportCSV() {
   /* ya definida arriba */
 }
 
-/* TABLA PRESENTES */
+/* =========================================================
+   TABLA PRESENTES
+   ========================================================= */
 .table-wrap {
   width: 100%;
   overflow-x: auto;
@@ -1083,14 +1125,16 @@ function exportCSV() {
   font-variant-numeric: tabular-nums;
 }
 
-/* RESPONSIVE FINO */
-@media (max-width: 960px) {
+/* =========================================================
+   RESPONSIVE FINO
+   ========================================================= */
+@media (max-width:960px) {
   .search-input {
     max-width: 320px;
     width: 100%;
   }
 }
-@media (max-width: 600px) {
+@media (max-width:600px) {
   .legend :deep(.v-chip) {
     height: 22px;
     font-size: 11px;
@@ -1100,21 +1144,23 @@ function exportCSV() {
     min-width: max(400px, 100%);
   }
   .row {
-    grid-template-columns: 36px repeat(auto-fit, minmax(54px, 1fr));
+    grid-template-columns: 32px repeat(auto-fit, minmax(50px, 1fr)); /* <<< también comprimimos en mobile */
     gap: 6px;
   }
   .row-label {
-    width: 36px;
+    width: 32px;
     padding: 4px 0;
     font-size: .7rem;
   }
   .seat {
-    min-width: 54px;
-    height: 32px;
-    border-radius: 16px;
-    font-size: 0.8rem;
+    min-width: 50px;
+    height: 30px;
+    border-radius: 14px;
+    font-size: 0.7rem;
+    padding: 0 6px;
   }
 }
+
 .btn-text {
   color: #ffd951 !important;
 }
@@ -1124,3 +1170,5 @@ function exportCSV() {
   color: #ffd951 !important;
 }
 </style>
+
+
