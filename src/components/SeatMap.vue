@@ -774,7 +774,6 @@ function exportCSV() {
   URL.revokeObjectURL(url)
 }
 </script>
-
 <style scoped>
 /* ===== Card / fondo oscuro dorado ===== */
 .card-contrast {
@@ -866,7 +865,7 @@ function exportCSV() {
    ========================================================= */
 .palcos-layout {
   display: grid;
-  grid-template-columns: 1fr 2fr 1fr; /* laterales / principal / laterales */
+  grid-template-columns: 1fr 2fr 1fr; /* A / PRINCIPAL / B */
   gap: 24px;
   width: 100%;
   max-width: 100%;
@@ -888,7 +887,7 @@ function exportCSV() {
   }
 }
 
-/* <900px: stack */
+/* <900px: stack (mobile/tablet angosta) */
 @media (max-width:900px) {
   .palcos-layout {
     grid-template-columns: 1fr;
@@ -953,7 +952,7 @@ function exportCSV() {
 }
 
 /* =========================================================
-   MOBILE: TABS
+   MOBILE: TABS (modo teléfono)
    ========================================================= */
 .palcos-tabs-wrap {
   display: flex;
@@ -987,7 +986,7 @@ function exportCSV() {
 }
 
 /* =========================================================
-   GRID FILAS + ASIENTOS (BASE DESKTOP)
+   GRID FILAS + ASIENTOS (BASE DESKTOP GRANDE)
    ========================================================= */
 .grid-rows-wrap {
   overflow-x: auto;
@@ -1123,7 +1122,7 @@ function exportCSV() {
 }
 
 /* =========================================================
-   RESPONSIVE FINO MOBILE
+   RESPONSIVE FINO MOBILE (teléfono)
    ========================================================= */
 @media (max-width:600px) {
   .legend :deep(.v-chip) {
@@ -1173,102 +1172,114 @@ function exportCSV() {
 }
 
 /* =========================================================
-   AJUSTE TABLET / NOTEBOOK (<=1500px y >=901px)
-   Objetivo: Sin barras en 1366x768
+   RANGO TABLET / NOTEBOOK CLÁSICO (<=1500px y >=901px)
+   — ACHICAR TODO MÁS TODAVÍA —
+   — Y HABILITAR SCROLL SOLO EN EL PALCO PRINCIPAL SI NO ALCANZA —
+   Este rango cubre 1366x768 / 1366x1024 que es tu caso real.
    ========================================================= */
 @media (max-width:1500px) and (min-width:901px) {
   .palcos-layout {
     grid-template-columns: 1fr 1.5fr 1fr;
-    gap: 16px;
+    gap: 14px;
   }
 
-  /* palco principal también sin ancho mínimo extra */
-  .palco-principal .grid-rows {
-    min-width: 100% !important;
-  }
-
-  /* matar cualquier scroll visual */
-  .palco-body {
-    padding: 12px;
-    overflow-x: hidden !important;
-    overflow-y: hidden !important;
-  }
-  .main-palco-body {
-    padding: 0 12px 12px;
-  }
-  .grid-rows-wrap {
-    overflow-x: hidden !important;
-    overflow-y: hidden !important;
-    padding-bottom: 0;
-  }
-
-  /* más compacto todavía */
-  .grid-rows {
-    gap: 6px;
-  }
-
-  .row {
-    grid-template-columns: 28px repeat(auto-fit, minmax(42px, 1fr));
-    gap: 3px;
-  }
-
-  .row-label {
-    width: 28px;
-    padding: 2px 0;
-    border-radius: 6px;
-    font-size: .65rem;
-    line-height: 1.1;
-  }
-
-  .seat {
-    min-width: 42px;
-    height: 24px;
-    border-radius: 12px;
-    font-size: .65rem;
-    line-height: 1.1;
-    padding: 0 4px;
-  }
-}
-
-/* =========================================================
-   BREAKPOINT MÁS CHICO TODAVÍA (<=1200px y >=901px)
-   ========================================================= */
-@media (max-width:1200px) and (min-width:901px) {
-  .palcos-layout {
-    grid-template-columns: 1fr 1.4fr 1fr;
-    gap: 12px;
-  }
-
+  /* menos padding interno en TODOS los palcos */
   .palco-body {
     padding: 10px;
+    overflow-x: hidden !important;
+    overflow-y: hidden !important;
   }
   .main-palco-body {
     padding: 0 10px 10px;
   }
 
+  /* filas más compactas en TODOS */
   .grid-rows {
-    gap: 5px;
+    gap: 4px;
+    min-width: 100% !important;
   }
 
   .row {
-    grid-template-columns: 26px repeat(auto-fit, minmax(40px, 1fr));
-    gap: 3px;
+    grid-template-columns: 22px repeat(auto-fit, minmax(32px, 1fr));
+    gap: 2px;
   }
 
   .row-label {
-    width: 26px;
+    width: 22px;
     padding: 2px 0;
+    border-radius: 5px;
     font-size: .6rem;
-    line-height: 1.1;
+    line-height: 1.05;
+    font-weight: 700;
   }
 
   .seat {
-    min-width: 40px;
-    height: 22px;
-    border-radius: 10px;
-    font-size: .6rem;
-    line-height: 1.1;
-    padding: 0 3px;
+    min-width: 32px;
+    height: 18px;
+    border-radius: 9px;
+    font-size: .58rem;
+    line-height: 1.05;
+    padding: 0 2px;
+    font-weight: 700;
+  }
+
+  /* >>> fallback: solo el palco principal (centro) puede scrollear si AÚN así no entra todo <<< */
+  .palco-principal .palco-body,
+  .palco-principal .grid-rows-wrap {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* =========================================================
+   BREAKPOINT MÁS CHICO TODAVÍA (<=1200px y >=901px)
+   — mantenemos misma lógica pero aún más apretado si baja más el ancho —
+   ========================================================= */
+@media (max-width:1200px) and (min-width:901px) {
+  .palcos-layout {
+    grid-template-columns: 1fr 1.4fr 1fr;
+    gap: 10px;
+  }
+
+  .palco-body {
+    padding: 8px;
+  }
+  .main-palco-body {
+    padding: 0 8px 8px;
+  }
+
+  .grid-rows {
+    gap: 3px;
+  }
+
+  .row {
+    grid-template-columns: 20px repeat(auto-fit, minmax(30px, 1fr));
+    gap: 2px;
+  }
+
+  .row-label {
+    width: 20px;
+    padding: 2px 0;
+    font-size: .55rem;
+    line-height: 1.05;
+    border-radius: 4px;
+  }
+
+  .seat {
+    min-width: 30px;
+    height: 16px;
+    border-radius: 8px;
+    font-size: .5rem;
+    line-height: 1.05;
+    padding: 0 2px;
+  }
+
+  /* el palco del medio mantiene scroll horizontal permitido */
+  .palco-principal .palco-body,
+  .palco-principal .grid-rows-wrap {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
   }
 }
 </style>
