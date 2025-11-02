@@ -61,6 +61,7 @@
                     <div class="result-top">
                       <span class="person-name text-truncate">{{ p.title }}</span>
 
+                      <!-- Chip de asiento -->
                       <v-chip
                         v-if="p.seatCode"
                         size="x-small"
@@ -71,8 +72,20 @@
                         {{ p.seatCode }}
                       </v-chip>
 
+                      <!-- Chip de palco -->
                       <v-chip
-                        v-else
+                        v-if="p.seatCode && p.palcoName"
+                        size="x-small"
+                        class="ml-1 palco-chip"
+                        label
+                        variant="flat"
+                      >
+                        {{ p.palcoName }}
+                      </v-chip>
+
+                      <!-- Si NO tiene asiento -->
+                      <v-chip
+                        v-else-if="!p.seatCode"
                         size="x-small"
                         class="ml-2 seat-chip"
                         variant="outlined"
@@ -214,7 +227,15 @@
             <div class="info-field">
               <v-icon size="16" class="mr-1 dim-icon">mdi-seat</v-icon>
               <span class="lbl">Asiento</span>
-              <span class="val">{{ selectedSeatCode || '—' }}</span>
+              <span class="val">
+                <template v-if="selectedSeatCode">
+                  <span class="seat-palco-wrap">
+                    <span class="seat-code">{{ selectedSeatCode }}</span>
+                    <span class="palco-inline">· {{ selectedPalcoName }}</span>
+                  </span>
+                </template>
+                <template v-else>—</template>
+              </span>
             </div>
           </div>
 
@@ -300,127 +321,17 @@
       </v-card>
     </v-dialog>
 
-    <!-- ===== MODAL PICKER ASIENTO ===== -->
+    <!-- ===== MODAL PICKER ASIENTO (usa SeatPickerDialog.vue) ===== -->
     <v-dialog
       v-model="seatPickerOpen"
       :fullscreen="isMobile"
-      :max-width="isMobile ? undefined : 640"
+      :max-width="isMobile ? undefined : 960"
       scrollable
-      persistent
       class="seat-dialog"
     >
-      <template #activator></template>
-
-      <v-card class="seat-card" rounded="xl">
-        <!-- HEADER -->
-        <header class="seat-header">
-          <div class="seat-header-top">
-            <v-icon size="20" class="mr-2 seat-header-icon">mdi-seat</v-icon>
-
-            <div class="seat-header-text">
-              <div class="seat-header-title">
-                {{ selected?.title ? `Asignar asiento a ${selected.title}` : 'Asignar asiento' }}
-              </div>
-
-              <div class="seat-header-sub">
-                Elegí un asiento libre o reasigná uno existente.
-              </div>
-            </div>
-
-            <v-btn
-              icon
-              size="small"
-              class="seat-close-btn"
-              variant="text"
-              :disabled="assigning"
-              @click="closeSeatPicker"
-            >
-              <v-icon>mdi-close</v-icon>
-            </v-btn>
-          </div>
-
-          <div class="seat-legend">
-            <v-chip color="success" label size="x-small" class="chip-strong">Presente</v-chip>
-            <v-chip color="warning" label size="x-small" class="chip-strong">Asignado</v-chip>
-            <v-chip variant="outlined" label size="x-small" class="chip-outline">Libre</v-chip>
-          </div>
-        </header>
-
-        <!-- BODY -->
-        <section class="seat-body">
-          <div class="grid-rows-wrap">
-            <div class="grid-rows">
-              <div
-                v-for="(row, rIdx) in store.seats"
-                :key="rIdx"
-                class="row"
-              >
-                <div class="row-label">{{ row[0][0] }}</div>
-
-                <v-btn
-                  v-for="code in row"
-                  :key="code"
-                  :class="[
-                    'seat',
-                    seatStatusLocal(code),
-                    { 'seat-selected': pickedSeat === code }
-                  ]"
-                  variant="flat"
-                  size="small"
-                  :aria-label="`Asiento ${code}`"
-                  :disabled="assigning"
-                  @click="pickedSeat = code"
-                >
-                  {{ code }}
-                </v-btn>
-              </div>
-            </div>
-          </div>
-
-          <div class="seat-info" v-if="pickedSeat">
-            <div class="seat-info-title">
-              Asiento seleccionado:
-              <span class="text-accent">{{ pickedSeat }}</span>
-            </div>
-
-            <div v-if="currentHolder">
-              Actualmente asignado a:
-              <b>{{ currentHolder.name }}</b>
-              <span class="text-dim">
-                · {{ currentHolder.org || '—' }} · {{ currentHolder.doc || '—' }}
-              </span>
-            </div>
-
-            <div v-else>
-              Este asiento está libre.
-            </div>
-          </div>
-
-          <div class="seat-bottom-spacer" />
-        </section>
-
-        <!-- FOOTER -->
-        <footer class="seat-footer">
-          <v-btn
-            variant="text"
-            class="btn-cancel"
-            :disabled="assigning"
-            @click="closeSeatPicker"
-          >
-            Cancelar
-          </v-btn>
-
-          <v-btn
-            class="btn-confirm"
-            color="primary"
-            :disabled="assigning || !pickedSeat"
-            :loading="assigning"
-            @click="confirmAssignSeat"
-          >
-            Confirmar
-          </v-btn>
-        </footer>
-      </v-card>
+      <SeatPickerDialog
+        @select="onSeatPicked"
+      />
     </v-dialog>
 
     <!-- ===== TOAST ===== -->
@@ -443,12 +354,11 @@
   </v-card>
 </template>
 
-
-
 <script setup>
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useDisplay } from 'vuetify'
 import { useSeatsStore } from '../stores'
+import SeatPickerDialog from './SeatPickerDialog.vue'
 
 const store = useSeatsStore()
 
@@ -462,7 +372,6 @@ const unmarking         = ref(false)
 
 const seatPickerOpen    = ref(false)
 const assigning         = ref(false)
-const pickedSeat        = ref(null)
 
 const searchTerm        = ref('')
 const showResults       = ref(false)
@@ -486,6 +395,24 @@ const snackbar = ref({
   text: '',
   ok: true
 })
+
+/* ===== MAPEO DE LETRA -> PALCO ===== */
+/* A-G => Principal, H-L => A, M-Q => B */
+function inferPalcoFromSeat (seatCode) {
+  if (!seatCode) return ''
+  const rowLetter = String(seatCode)[0]?.toUpperCase() || ''
+
+  const principalSet = new Set(['A','B','C','D','E','F','G'])
+  const palcoASet    = new Set(['H','I','J','K','L'])
+  const palcoBSet    = new Set(['M','N','O','P','Q'])
+
+  if (principalSet.has(rowLetter)) return 'Palco Principal'
+  if (palcoASet.has(rowLetter))    return 'Palco A'
+  if (palcoBSet.has(rowLetter))    return 'Palco B'
+
+  // fallback
+  return 'Palco Principal'
+}
 
 /* ===== TEXTO ROTATIVO DEL HINT ===== */
 const hintWords = [
@@ -514,6 +441,13 @@ const chipText = computed(() => {
   return 'Sin asignar'
 })
 
+/* palco name para la persona seleccionada en el detalle */
+const selectedPalcoName = computed(() => {
+  return selectedSeatCode.value
+    ? inferPalcoFromSeat(selectedSeatCode.value)
+    : ''
+})
+
 /* normalizador búsqueda */
 const norm = s =>
   (s || '')
@@ -532,17 +466,21 @@ const initials = name =>
 
 /* data de store -> formato buscador */
 const allPeople = computed(() =>
-  (store.people ?? []).map(p => ({
-    title: p.name,
-    value: p.id,
-    seatId:  p.seatId   ?? p.seat_id   ?? null,
-    seatCode:p.seatCode ?? p.seat      ?? p.seat_code ?? null,
-    present: !!p.present,
-    subtitle: [p.org, p.doc].filter(Boolean).join(' · ') || '—',
-    doc: p.doc || '',
-    org: p.org || '',
-    _keywords: norm([p.name, p.doc, p.org].filter(Boolean).join(' '))
-  }))
+  (store.people ?? []).map(p => {
+    const seatCode = p.seatCode ?? p.seat ?? p.seat_code ?? null
+    return {
+      title: p.name,
+      value: p.id,
+      seatId:   p.seatId    ?? p.seat_id    ?? null,
+      seatCode: seatCode,
+      present:  !!p.present,
+      palcoName: seatCode ? inferPalcoFromSeat(seatCode) : '',
+      subtitle: [p.org, p.doc].filter(Boolean).join(' · ') || '—',
+      doc: p.doc || '',
+      org: p.org || '',
+      _keywords: norm([p.name, p.doc, p.org].filter(Boolean).join(' '))
+    }
+  })
 )
 
 /* filtrado live */
@@ -637,18 +575,15 @@ function pickPerson (p) {
   selectedDoc.value      = p.doc || ''
   selectedOrg.value      = p.org || ''
 
-  // al seleccionar escondemos el buscador (corta la vista de resultados)
+  // al seleccionar escondemos el buscador
   searchTerm.value = p.title
   showResults.value = false
 }
 
 /* ===== LIMPIEZA ===== */
-/* soft: limpia resultados/toast pero no rompe la persona ya elegida */
 function resetSelectionSoft () {
   hideToast()
 }
-
-/* hard: volver a modo "buscar otra persona" */
 function clearAll () {
   searchTerm.value       = ''
   selected.value         = null
@@ -680,7 +615,9 @@ async function refreshStore () {
 }
 
 function syncFromPerson (p) {
-  selectedSeatCode.value = p.seatCode ?? p.seat ?? p.seat_code ?? null
+  const seatCode = p.seatCode ?? p.seat ?? p.seat_code ?? null
+
+  selectedSeatCode.value = seatCode
   selectedSeatId.value   = p.seatId   ?? p.seat_id ?? selectedSeatId.value ?? null
   selectedPresent.value  = !!p.present
   selectedDoc.value      = p.doc || selectedDoc.value
@@ -690,8 +627,9 @@ function syncFromPerson (p) {
     title: p.name,
     value: p.id,
     seatId: p.seatId ?? p.seat_id ?? null,
-    seatCode: p.seatCode ?? p.seat ?? p.seat_code ?? null,
+    seatCode: seatCode,
     present: p.present,
+    palcoName: seatCode ? inferPalcoFromSeat(seatCode) : '',
     subtitle: [p.org, p.doc].filter(Boolean).join(' · ') || '—',
     doc: p.doc,
     org: p.org
@@ -717,65 +655,35 @@ function hideToast() {
   snackbar.value.show = false
 }
 
-/* ===== MODAL ASIENTOS HELPERS ===== */
-function seatStatusLocal(code) {
-  const holder = store.people.find(p => p.seat === code)
-  if (!holder) return 'free'
-  if (holder.present) return 'present'
-  return 'assigned'
-}
-
+/* ===== SEAT PICKER (SeatPickerDialog.vue) ===== */
 function openSeatPicker() {
-  pickedSeat.value = selectedSeatCode.value || null
   seatPickerOpen.value = true
 }
-function closeSeatPicker() {
-  if (assigning.value) return
-  seatPickerOpen.value = false
-  pickedSeat.value = null
-}
-
-const currentHolder = computed(() => {
-  if (!pickedSeat.value) return null
-  return store.people.find(p => p.seat === pickedSeat.value) || null
-})
-
-/* ===== FLOW HELPERS ===== */
-function bailSubmit(msg, ok) {
-  showToast(msg, ok)
-  submitting.value = false
-}
-function bailAssign(msg, ok) {
-  showToast(msg, ok)
-  assigning.value = false
-}
-function bailRelease(msg, ok) {
-  showToast(msg, ok)
-  releasing.value = false
-  confirmRelease.value = false
-}
-function bailUnmark(msg, ok) {
-  showToast(msg, ok)
-  unmarking.value = false
-}
-
-/* ===== CONFIRMAR ASIENTO ===== */
-async function confirmAssignSeat() {
-  if (!selectedId.value) return bailAssign('Seleccioná una persona', false)
-  if (!pickedSeat.value) return bailAssign('Seleccioná un asiento', false)
+async function onSeatPicked(newSeat) {
+  // viene del hijo SeatPickerDialog cuando hace "Confirmar"
+  // Acá reasignamos asiento y cerramos el modal.
+  if (!selectedId.value) {
+    showToast('Seleccioná una persona', false)
+    seatPickerOpen.value = false
+    return
+  }
+  if (!newSeat) {
+    showToast('Seleccioná un asiento', false)
+    seatPickerOpen.value = false
+    return
+  }
 
   assigning.value = true
   try {
     const targetId = selectedId.value
-    const newSeat  = pickedSeat.value
 
-    // si otra persona tenía ese asiento, la desasignamos
-    const other = store.people.find(p => p.id !== targetId && p.seat === newSeat)
+    // Si otra persona tenía ese asiento, la desasignamos
+    const other = store.people.find(p => p.id !== targetId && (p.seat === newSeat || p.seatCode === newSeat || p.seat_code === newSeat))
     if (other) {
       await store.updatePerson(other.id, { seat: null })
     }
 
-    // asignamos el asiento a esta persona
+    // Asignar nuevo asiento a la persona seleccionada
     await store.updatePerson(targetId, { seat: newSeat })
 
     await refreshStore()
@@ -786,7 +694,7 @@ async function confirmAssignSeat() {
     showToast('Error al asignar asiento', false)
   } finally {
     assigning.value = false
-    closeSeatPicker()
+    seatPickerOpen.value = false
   }
 }
 
@@ -795,7 +703,11 @@ async function handleSubmit () {
   if (submitting.value) return
   submitting.value = true
 
-  if (!selected.value) return bailSubmit('Seleccioná una persona', false)
+  if (!selected.value) {
+    showToast('Seleccioná una persona', false)
+    submitting.value = false
+    return
+  }
 
   try {
     const id = selectedId.value
@@ -803,7 +715,9 @@ async function handleSubmit () {
     // chequeo estado vivo en store para evitar doble click
     const live = (store.people ?? []).find(p => p.id == id)
     if (live?.present || selectedPresent.value) {
-      return bailSubmit('Ya estaba presente', true)
+      showToast('Ya estaba presente', true)
+      submitting.value = false
+      return
     }
 
     const updated =
@@ -824,9 +738,11 @@ async function handleSubmit () {
     await refreshStore()
     syncFromStoreById(id)
 
-    return bailSubmit('Registrado correctamente', true)
+    showToast('Registrado correctamente', true)
+    submitting.value = false
   } catch (e) {
-    return bailSubmit('No se pudo registrar', false)
+    showToast('No se pudo registrar', false)
+    submitting.value = false
   }
 }
 
@@ -836,7 +752,10 @@ async function onReleaseSeat () {
   releasing.value = true
 
   if (!selectedId.value || !selectedSeatCode.value) {
-    return bailRelease('No hay asiento para liberar', false)
+    showToast('No hay asiento para liberar', false)
+    releasing.value = false
+    confirmRelease.value = false
+    return
   }
 
   try {
@@ -846,9 +765,13 @@ async function onReleaseSeat () {
     await refreshStore()
     syncFromStoreById(personId)
 
-    return bailRelease('Asiento liberado', true)
+    showToast('Asiento liberado', true)
+    releasing.value = false
+    confirmRelease.value = false
   } catch (e) {
-    return bailRelease('Error al liberar el asiento', false)
+    showToast('Error al liberar el asiento', false)
+    releasing.value = false
+    confirmRelease.value = false
   }
 }
 
@@ -858,7 +781,9 @@ async function onRemovePresenceLikeTable () {
   unmarking.value = true
 
   if (!selectedId.value) {
-    return bailUnmark('No hay persona seleccionada', false)
+    showToast('No hay persona seleccionada', false)
+    unmarking.value = false
+    return
   }
 
   try {
@@ -871,14 +796,17 @@ async function onRemovePresenceLikeTable () {
     await refreshStore()
     syncFromStoreById(personId)
 
-    return bailUnmark('Presencialidad desactivada', true)
+    showToast('Presencialidad desactivada', true)
+    unmarking.value = false
   } catch (e) {
-    return bailUnmark('No se pudo desactivar presencialidad', false)
+    showToast('No se pudo desactivar presencialidad', false)
+    unmarking.value = false
   }
 }
 </script>
+
 <style scoped>
-/* ===== SHELL PRINCIPAL (igual lenguaje visual que hero/feature-card) ===== */
+/* ===== SHELL PRINCIPAL ===== */
 .ck-shell {
   background:#0e1230;
   color:#eaf0ff;
@@ -888,7 +816,7 @@ async function onRemovePresenceLikeTable () {
   margin-inline:auto;
 }
 
-/* HEADER de la tarjeta */
+/* HEADER */
 .ck-headbar{
   display:flex;
   align-items:flex-start;
@@ -938,7 +866,7 @@ async function onRemovePresenceLikeTable () {
   color:#eaf0ff;
 }
 
-/* ====== BLOQUES (cards internas tipo feature-card / info-card) ====== */
+/* ===== BLOQUE CARD ===== */
 .block-card{
   background:#0f1433;
   border:1px solid rgba(255,217,81,.12);
@@ -950,14 +878,10 @@ async function onRemovePresenceLikeTable () {
 }
 
 /* ================= BUSCADOR ================= */
-
-/* fila input */
 .search-row{
   position:relative;
   margin-bottom:16px;
 }
-
-/* input estilizado */
 .search-input :deep(.v-field){
   border-radius:12px !important;
   background:rgba(14,18,48,.6) !important;
@@ -985,7 +909,7 @@ async function onRemovePresenceLikeTable () {
   font-size:.8rem;
 }
 
-/* loader puntitos dentro del input */
+/* loader */
 .search-loader{
   position:absolute;
   right:16px;
@@ -1012,7 +936,7 @@ async function onRemovePresenceLikeTable () {
   40%        { opacity:1; transform:scale(1); }
 }
 
-/* caja resultados / ayuda */
+/* result container */
 .results-shell{
   background:#0e1230;
   border:1px solid rgba(255,217,81,.12);
@@ -1100,7 +1024,39 @@ async function onRemovePresenceLikeTable () {
   word-break:break-word;
 }
 
-/* estado sin resultados */
+/* chips */
+.seat-chip{
+  font-weight:700 !important;
+  letter-spacing:.03em;
+}
+.palco-chip{
+  background:rgba(255,217,81,.15) !important;
+  border:1px solid rgba(255,217,81,.4) !important;
+  font-weight:700 !important;
+  color:#ffd951 !important;
+  text-transform:none !important;
+  letter-spacing:.03em !important;
+  line-height:1.1 !important;
+  height:auto !important;
+  padding:2px 6px !important;
+  font-size:.7rem !important;
+  border-radius:8px !important;
+}
+
+/* puntito estado */
+.state-dot{
+  width:10px;
+  height:10px;
+  border-radius:999px;
+  flex-shrink:0;
+  margin-left:8px;
+  margin-top:4px;
+}
+.state-dot.is-present{ background:#4caf50; }
+.state-dot.is-assigned{ background:#ffb300; }
+.state-dot.is-free{ background:#9e9e9e; }
+
+/* mensaje sin resultados */
 .nores-row{
   flex:1 1 auto;
   display:flex;
@@ -1115,7 +1071,7 @@ async function onRemovePresenceLikeTable () {
 }
 .nores-text{ opacity:.8; }
 
-/* ayuda dinámica inicial */
+/* ayuda inicial */
 .helpbox{
   flex:1 1 auto;
   display:flex;
@@ -1126,9 +1082,7 @@ async function onRemovePresenceLikeTable () {
   background-color:#0e1230;
   padding:20px 16px;
 }
-.help-inner{
-  max-width:420px;
-}
+.help-inner{ max-width:420px; }
 .help-dynamic{
   font-size:1rem;
   line-height:1.35;
@@ -1155,26 +1109,7 @@ async function onRemovePresenceLikeTable () {
   margin-inline:auto;
 }
 
-/* puntito de estado presente/asignado/libre */
-.state-dot{
-  width:10px;
-  height:10px;
-  border-radius:999px;
-  flex-shrink:0;
-  margin-left:8px;
-  margin-top:4px;
-}
-.state-dot.is-present{ background:#4caf50; }
-.state-dot.is-assigned{ background:#ffb300; }
-.state-dot.is-free{ background:#9e9e9e; }
-
-.seat-chip{
-  font-weight:700 !important;
-  letter-spacing:.03em;
-}
-
 /* ================= DETALLE PERSONA ================= */
-
 .person-head{
   display:flex;
   justify-content:space-between;
@@ -1231,11 +1166,11 @@ async function onRemovePresenceLikeTable () {
   text-transform:uppercase;
   letter-spacing:.04em;
   color:#fff;
-  background:rgba(255,217,81,.15);
-  border:1px solid rgba(255,217,81,.4);
+  background:rgba(40,167,69,.25);
+  border:1px solid rgba(40,167,69,.6);
 }
 
-/* botón registrar / chip YA REGISTRADO */
+/* estado YA REGISTRADO / botón registrar */
 .register-row{
   margin-top:12px;
   margin-bottom:12px;
@@ -1311,8 +1246,14 @@ async function onRemovePresenceLikeTable () {
   opacity:.6;
   color:#fff;
 }
+.palco-inline{
+  font-weight:600;
+  color:#ffd951;
+  margin-left:4px;
+  white-space:nowrap;
+}
 
-/* ACCIONES debajo */
+/* ACCIONES */
 .actions-col{
   margin-top:16px;
   display:grid;
@@ -1352,7 +1293,7 @@ async function onRemovePresenceLikeTable () {
   padding-left:0 !important;
 }
 
-/* SNACKBAR / TOAST */
+/* TOAST */
 .snackbar-strong {
   font-weight:600;
   letter-spacing:.02em;
@@ -1361,240 +1302,6 @@ async function onRemovePresenceLikeTable () {
   border-radius:12px !important;
   box-shadow:0 20px 40px rgba(0,0,0,.6);
   color:#fff;
-}
-
-/* =============== MODAL ASIENTOS (se mantiene, pero dorado) =============== */
-
-.seat-dialog :deep(.v-overlay__scrim){
-  background:rgba(0,0,0,.65) !important;
-}
-.seat-card{
-  background:#0e1230 !important;
-  color:#eaf0ff;
-  border:1px solid rgba(255,217,81,.4);
-  box-shadow:0 20px 40px rgba(0,0,0,.8);
-  display:flex;
-  flex-direction:column;
-  border-radius:16px !important;
-  overflow:hidden;
-  position:relative;
-}
-@media(max-width:960px){
-  .seat-card{
-    height:80vh;
-    max-height:80vh;
-  }
-}
-@media(min-width:961px){
-  .seat-card{
-    height:auto;
-    max-height:80vh;
-    min-width:560px;
-    max-width:640px;
-  }
-}
-
-.seat-header{
-  flex-shrink:0;
-  background:radial-gradient(
-    circle at 0% 0%,
-    rgba(255,217,81,.18) 0%,
-    rgba(14,18,48,0) 60%
-  );
-  border-bottom:1px solid rgba(255,217,81,.25);
-  color:#fff;
-  padding:16px;
-  padding-bottom:12px;
-  box-shadow:0 6px 16px rgba(0,0,0,.7);
-}
-.seat-header-top{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:12px;
-  flex-wrap:nowrap;
-  min-width:0;
-  color:#fff;
-}
-.seat-header-icon{
-  flex-shrink:0;
-  color:#ffd951;
-}
-.seat-header-text{
-  min-width:0;
-  flex:1;
-  color:#fff;
-}
-.seat-header-title{
-  font-weight:800;
-  color:#fff;
-  font-size:1rem;
-  line-height:1.25;
-  min-width:0;
-}
-.seat-header-sub{
-  font-size:.8rem;
-  line-height:1.3;
-  opacity:.7;
-  color:#fff;
-  margin-top:2px;
-}
-.seat-close-btn{
-  flex-shrink:0;
-  color:#ffd951 !important;
-  min-width:auto !important;
-  width:32px;
-  height:32px;
-}
-.seat-legend{
-  display:flex;
-  flex-wrap:wrap;
-  row-gap:4px;
-  column-gap:6px;
-  margin-top:12px;
-}
-.chip-strong{
-  font-weight:800 !important;
-  border-radius:10px !important;
-  line-height:1.1 !important;
-  height:auto !important;
-  padding:2px 8px !important;
-  font-size:.7rem !important;
-}
-.chip-outline{
-  color:#eaf0ff !important;
-  border-color:rgba(234,240,255,.28) !important;
-  font-weight:600 !important;
-  border-radius:10px !important;
-  line-height:1.1 !important;
-  height:auto !important;
-  padding:2px 8px !important;
-  font-size:.7rem !important;
-}
-
-.seat-body{
-  flex:1 1 auto;
-  overflow-y:auto;
-  -webkit-overflow-scrolling:touch;
-  padding:16px;
-  padding-top:12px;
-  background:#0e1230;
-  color:#fff;
-  min-height:0;
-}
-.grid-rows-wrap{
-  overflow-x:auto;
-  -webkit-overflow-scrolling:touch;
-  padding-bottom:6px;
-}
-.grid-rows{
-  display:flex;
-  flex-direction:column-reverse;
-  gap:12px;
-  min-width:max(560px,100%);
-}
-.row{
-  display:grid;
-  grid-auto-flow:column;
-  grid-template-columns:44px repeat(10,68px);
-  gap:8px;
-  align-items:center;
-}
-.row-label{
-  position:sticky;
-  left:0;
-  z-index:1;
-  text-align:center;
-  font-weight:800;
-  color:#0b0d28;
-  background:#ffd951;
-  border:1px solid rgba(255,217,81,.45);
-  box-shadow:0 2px 6px rgba(0,0,0,.25);
-  border-radius:10px;
-  padding:6px 0;
-  width:44px;
-  font-size:.8rem;
-  line-height:1.1;
-}
-.seat{
-  min-width:58px;
-  height:36px;
-  border-radius:18px;
-  font-weight:700;
-  text-transform:none;
-  box-shadow:0 1px 2px rgba(0,0,0,.25);
-  background:#f3f5f9 !important;
-  color:#0b0d28 !important;
-  font-size:.9rem;
-  line-height:1;
-}
-.seat.present  { background:#4caf50 !important; color:#fff !important; }
-.seat.assigned { background:#ffb300 !important; color:#0b0d28 !important; }
-.seat.free     { background:#f3f5f9 !important; color:#0b0d28 !important; }
-.seat-selected{
-  outline:2px solid #ffd951;
-  outline-offset:0;
-  box-shadow:0 0 8px rgba(255,217,81,.75);
-}
-
-.seat-info{
-  margin-top:16px;
-  font-size:.9rem;
-  line-height:1.4;
-  color:#eaf0ff;
-}
-.seat-info-title{
-  font-size:.9rem;
-  font-weight:700;
-  color:#fff;
-  margin-bottom:4px;
-}
-.text-accent { color:#ffd951; font-weight:700; }
-.text-dim { color:rgba(234,240,255,.75); }
-
-.seat-bottom-spacer{ height:72px; }
-@media(min-width:961px){
-  .seat-bottom-spacer{ height:24px; }
-}
-
-.seat-footer{
-  flex-shrink:0;
-  display:flex;
-  align-items:center;
-  justify-content:flex-end;
-  gap:12px;
-  padding:12px 16px;
-  background:#0b0d28;
-  border-top:1px solid rgba(255,217,81,.3);
-  box-shadow:0 -6px 16px rgba(0,0,0,.8);
-}
-@media(max-width:960px){
-  .seat-footer{
-    position:sticky;
-    bottom:0;
-    left:0;
-    right:0;
-    z-index:10;
-    box-shadow:0 -4px 12px rgba(0,0,0,.8);
-  }
-}
-@media(min-width:961px){
-  .seat-footer{
-    position:static;
-    box-shadow:0 -4px 12px rgba(0,0,0,.6);
-  }
-}
-.btn-cancel{
-  color:#ffd951 !important;
-  text-transform:none !important;
-  font-weight:600 !important;
-  min-width:auto !important;
-}
-.btn-confirm{
-  font-weight:700 !important;
-  text-transform:none !important;
-  border-radius:10px !important;
-  min-width:120px;
 }
 
 /* MODAL liberar asiento */
@@ -1610,7 +1317,7 @@ async function onRemovePresenceLikeTable () {
   align-items:center;
 }
 
-/* RESPONSIVE ajustes */
+/* RESPONSIVE */
 @media(max-width:600px){
   .ck-headbar{
     flex-direction:row;
@@ -1632,7 +1339,23 @@ async function onRemovePresenceLikeTable () {
     font-size:1rem !important;
   }
 }
+
+/* asiento inline dentro de info */
+.seat-palco-wrap{
+  display:inline-flex;
+  align-items:center;
+  flex-wrap:nowrap;
+  gap:6px;
+  line-height:1.3;
+}
+.seat-code{
+  font-weight:700;
+  color:#fff;
+}
+.palco-inline{
+  font-weight:600;
+  color:#ffd951;
+  white-space:nowrap;
+  line-height:1.3;
+}
 </style>
-
-
-
