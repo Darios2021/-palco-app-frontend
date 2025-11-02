@@ -816,7 +816,6 @@ function exportCSV() {
   padding: 0 8px;
   font-size: 12px;
   display: inline-flex;
-  align-items: center;
 }
 .chip-count {
   font-weight: 800;
@@ -864,19 +863,17 @@ function exportCSV() {
 
 /* =========================================================
    LAYOUT DE LOS 3 PALCOS (DESKTOP / TABLET)
-   OBJETIVO: USAR TODO EL ANCHO, SIN DEJARLOS APLASTADOS
    ========================================================= */
 .palcos-layout {
   display: grid;
-  /* proporción 1 / 2 / 1 */
-  grid-template-columns: 1fr 2fr 1fr;
+  grid-template-columns: 1fr 2fr 1fr; /* laterales / principal / laterales */
   gap: 24px;
   width: 100%;
   max-width: 100%;
 }
 
 /* pantallas muy grandes */
-@media (min-width: 1440px) {
+@media (min-width:1440px) {
   .palcos-layout {
     grid-template-columns: 1.1fr 2fr 1.1fr;
     gap: 32px;
@@ -884,7 +881,7 @@ function exportCSV() {
 }
 
 /* notebooks / medianas */
-@media (max-width: 1100px) {
+@media (max-width:1100px) {
   .palcos-layout {
     grid-template-columns: 1fr 1.6fr 1fr;
     gap: 20px;
@@ -892,7 +889,7 @@ function exportCSV() {
 }
 
 /* <900px: stack */
-@media (max-width: 900px) {
+@media (max-width:900px) {
   .palcos-layout {
     grid-template-columns: 1fr;
     gap: 16px;
@@ -950,7 +947,7 @@ function exportCSV() {
   color: rgba(234,240,255,.55);
   border-top: 1px solid rgba(255,217,81,.08);
   padding: 8px 16px 12px;
-  text-align: right;
+  text-align: center;
   text-transform: uppercase;
   letter-spacing: .05em;
 }
@@ -990,13 +987,14 @@ function exportCSV() {
 }
 
 /* =========================================================
-   GRID FILAS + ASIENTOS DENTRO DE CADA PALCO
+   GRID FILAS + ASIENTOS (BASE DESKTOP)
    ========================================================= */
 .grid-rows-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 6px;
 }
+
 .grid-rows {
   display: flex;
   flex-direction: column-reverse;
@@ -1004,22 +1002,15 @@ function exportCSV() {
   min-width: max(480px, 100%);
 }
 
-/* >>>> AJUSTE CLAVE ACA <<<<
-   - bajamos el min ancho de cada asiento
-   - bajamos altura
-   - bajamos la columna de letra
-   Con esto todo el bloque del palco es un poco más "compacto" horizontalmente.
-*/
 .row {
   display: grid;
   grid-auto-flow: column;
-  /* <<< ajustado: row-label + butacas más angostas */
-  grid-template-columns: 38px repeat(auto-fit, minmax(54px, 1fr)); /* antes 44px / 60px */
-  gap: 6px; /* antes 8px */
+  grid-template-columns: 38px repeat(auto-fit, minmax(54px, 1fr));
+  gap: 6px;
   align-items: center;
 }
 
-/* etiqueta amarilla con la letra de fila */
+/* letra de fila */
 .row-label {
   position: sticky;
   left: 0;
@@ -1030,28 +1021,28 @@ function exportCSV() {
   background: #ffd951;
   border: 1px solid rgba(255,217,81,.45);
   box-shadow: 0 2px 6px rgba(0,0,0,.25);
-  border-radius: 8px;              /* <<< ajustado: 10px -> 8px para ganar aire */
-  padding: 5px 0;                  /* <<< ajustado: 6px -> 5px */
-  width: 38px;                     /* <<< ajustado: 44px -> 38px */
-  font-size: .75rem;               /* <<< ajustado: .8rem -> .75rem */
+  border-radius: 8px;
+  padding: 5px 0;
+  width: 38px;
+  font-size: .75rem;
   line-height: 1.2;
 }
 
-/* asiento píldora */
+/* butaca */
 .seat {
-  min-width: 54px;                 /* <<< ajustado: 58px -> 54px */
-  height: 32px;                    /* <<< ajustado: 36px -> 32px */
-  border-radius: 16px;             /* <<< ajustado: 18px -> 16px */
+  min-width: 54px;
+  height: 32px;
+  border-radius: 16px;
   font-weight: 700;
   text-transform: none;
   box-shadow: 0 1px 2px rgba(0,0,0,.25);
   background: #f3f5f9 !important;
   color: #0b0d28 !important;
   border: 0 !important;
-  font-size: .75rem;               /* <<< ajustado: .8rem -> .75rem */
+  font-size: .75rem;
   line-height: 1.2;
   justify-content: center;
-  padding: 0 8px;                  /* <<< agregado para que no crezca innecesario */
+  padding: 0 8px;
 }
 .seat.present  {
   background: #4caf50 !important;
@@ -1083,7 +1074,6 @@ function exportCSV() {
   padding: 0 8px;
   font-size: 12px;
   display: inline-flex;
-  align-items: center;
 }
 .legend :deep(.chip-presente) {
   background-color: #4caf50 !important;
@@ -1093,9 +1083,7 @@ function exportCSV() {
   background-color: #ffb300 !important;
   color: #0b0d28 !important;
 }
-.chip-outline {
-  /* ya definida arriba */
-}
+.chip-outline {}
 
 /* =========================================================
    TABLA PRESENTES
@@ -1125,33 +1113,40 @@ function exportCSV() {
   font-variant-numeric: tabular-nums;
 }
 
-/* =========================================================
-   RESPONSIVE FINO
-   ========================================================= */
-@media (max-width:960px) {
-  .search-input {
-    max-width: 320px;
-    width: 100%;
-  }
+.btn-text {
+  color: #ffd951 !important;
 }
+.alert-contrast {
+  background: rgba(255,217,81,.07) !important;
+  border-color: rgba(255,217,81,.18) !important;
+  color: #ffd951 !important;
+}
+
+/* =========================================================
+   RESPONSIVE FINO MOBILE
+   ========================================================= */
 @media (max-width:600px) {
   .legend :deep(.v-chip) {
     height: 22px;
     font-size: 11px;
   }
+
   .grid-rows {
     gap: 10px;
     min-width: max(400px, 100%);
   }
+
   .row {
-    grid-template-columns: 32px repeat(auto-fit, minmax(50px, 1fr)); /* <<< también comprimimos en mobile */
+    grid-template-columns: 32px repeat(auto-fit, minmax(50px, 1fr));
     gap: 6px;
   }
+
   .row-label {
     width: 32px;
     padding: 4px 0;
     font-size: .7rem;
   }
+
   .seat {
     min-width: 50px;
     height: 30px;
@@ -1161,14 +1156,125 @@ function exportCSV() {
   }
 }
 
-.btn-text {
-  color: #ffd951 !important;
+/* =========================================================
+   LATERALES (PALCO A / PALCO B)
+   ========================================================= */
+.palco-lateral .grid-rows {
+  min-width: 100% !important;
 }
-.alert-contrast {
-  background: rgba(255,217,81,.07) !important;
-  border-color: rgba(255,217,81,.18) !important;
-  color: #ffd951 !important;
+.palco-lateral .palco-body {
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+}
+.palco-lateral .grid-rows-wrap {
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+  padding-bottom: 0;
+}
+
+/* =========================================================
+   AJUSTE TABLET / NOTEBOOK (<=1500px y >=901px)
+   Objetivo: Sin barras en 1366x768
+   ========================================================= */
+@media (max-width:1500px) and (min-width:901px) {
+  .palcos-layout {
+    grid-template-columns: 1fr 1.5fr 1fr;
+    gap: 16px;
+  }
+
+  /* palco principal también sin ancho mínimo extra */
+  .palco-principal .grid-rows {
+    min-width: 100% !important;
+  }
+
+  /* matar cualquier scroll visual */
+  .palco-body {
+    padding: 12px;
+    overflow-x: hidden !important;
+    overflow-y: hidden !important;
+  }
+  .main-palco-body {
+    padding: 0 12px 12px;
+  }
+  .grid-rows-wrap {
+    overflow-x: hidden !important;
+    overflow-y: hidden !important;
+    padding-bottom: 0;
+  }
+
+  /* más compacto todavía */
+  .grid-rows {
+    gap: 6px;
+  }
+
+  .row {
+    grid-template-columns: 28px repeat(auto-fit, minmax(42px, 1fr));
+    gap: 3px;
+  }
+
+  .row-label {
+    width: 28px;
+    padding: 2px 0;
+    border-radius: 6px;
+    font-size: .65rem;
+    line-height: 1.1;
+  }
+
+  .seat {
+    min-width: 42px;
+    height: 24px;
+    border-radius: 12px;
+    font-size: .65rem;
+    line-height: 1.1;
+    padding: 0 4px;
+  }
+}
+
+/* =========================================================
+   BREAKPOINT MÁS CHICO TODAVÍA (<=1200px y >=901px)
+   ========================================================= */
+@media (max-width:1200px) and (min-width:901px) {
+  .palcos-layout {
+    grid-template-columns: 1fr 1.4fr 1fr;
+    gap: 12px;
+  }
+
+  .palco-body {
+    padding: 10px;
+  }
+  .main-palco-body {
+    padding: 0 10px 10px;
+  }
+
+  .grid-rows {
+    gap: 5px;
+  }
+
+  .row {
+    grid-template-columns: 26px repeat(auto-fit, minmax(40px, 1fr));
+    gap: 3px;
+  }
+
+  .row-label {
+    width: 26px;
+    padding: 2px 0;
+    font-size: .6rem;
+    line-height: 1.1;
+  }
+
+  .seat {
+    min-width: 40px;
+    height: 22px;
+    border-radius: 10px;
+    font-size: .6rem;
+    line-height: 1.1;
+    padding: 0 3px;
+  }
 }
 </style>
+
+
+
+
 
 
