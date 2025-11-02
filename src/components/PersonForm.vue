@@ -1,10 +1,14 @@
 <template>
   <v-card class="card-contrast" rounded="xl">
-    <!-- HEADER -->
+    <!-- ===== HEADER ===== -->
     <v-card-title class="title-contrast d-flex align-center flex-wrap">
       <v-icon class="mr-2">mdi-account-plus</v-icon>
-      <span class="font-weight-800">{{ isEdit ? 'Editar persona' : 'Nueva persona' }}</span>
+      <span class="font-weight-800">
+        {{ isEdit ? 'Editar persona' : 'Nueva persona' }}
+      </span>
+
       <v-spacer />
+
       <v-chip
         v-if="isEdit && personSeat"
         size="small"
@@ -15,7 +19,7 @@
       </v-chip>
     </v-card-title>
 
-    <!-- FORM -->
+    <!-- ===== FORM ===== -->
     <v-form ref="formRef" @submit.prevent="onSubmit">
       <v-card-text class="pb-0">
         <v-row class="g-12">
@@ -65,22 +69,48 @@
             />
           </v-col>
 
-          <!-- ASIENTO -->
-          <v-col cols="12" md="8">
+          <!-- PALCO -->
+          <v-col cols="12" sm="6" md="4">
             <v-select
+              v-model="selectedPalcoId"
+              :items="palcoItems"
+              item-title="name"
+              item-value="id"
+              label="Palco"
+              placeholder="Elegí el palco"
+              class="field-contrast"
+              prepend-inner-icon="mdi-seat"
+              hide-details="auto"
+              :loading="loadingPalcos"
+              :disabled="loadingPalcos"
+              :menu-props="menuProps"
+            >
+              <!-- cómo se ve lo elegido -->
+              <template #selection="{ item }">
+                <span v-if="item && item.raw">{{ item.raw.name }}</span>
+              </template>
+            </v-select>
+          </v-col>
+
+          <!-- ASIENTO -->
+          <v-col cols="12" sm="6" md="8">
+            <v-select
+              :key="selectedPalcoId"
               v-model="form.seat"
               :items="seatOptions"
               item-title="title"
               item-value="value"
               label="Asiento asignado"
-              placeholder="Seleccioná un asiento (opcional)"
+              placeholder="Seleccioná un asiento"
               clearable
               class="field-contrast"
-              prepend-inner-icon="mdi-seat"
+              prepend-inner-icon="mdi-seat-recline-normal"
               hide-details="auto"
+              :loading="loadingPalcos || loadingPeople"
+              :disabled="!selectedPalcoId || loadingPalcos || loadingPeople"
               :menu-props="menuProps"
             >
-              <!-- opciones -->
+              <!-- ítems del menú -->
               <template #item="{ props, item }">
                 <v-list-item v-bind="props" density="comfortable">
                   <template #title>
@@ -100,15 +130,20 @@
                 </v-list-item>
               </template>
 
-              <!-- valor seleccionado -->
+              <!-- valor elegido -->
               <template #selection="{ item }">
                 <span v-if="item && item.raw">{{ item.raw.code }}</span>
               </template>
             </v-select>
           </v-col>
 
-          <!-- ESTADO SOLO EDICIÓN -->
-          <v-col v-if="isEdit" cols="12" md="4" class="d-flex align-end">
+          <!-- ESTADO SOLO EN EDICIÓN -->
+          <v-col
+            v-if="isEdit"
+            cols="12"
+            md="4"
+            class="d-flex align-end"
+          >
             <div class="w-100">
               <div class="text-dim mb-1">Estado actual</div>
               <div class="d-flex align-center gap-8 flex-wrap">
@@ -137,7 +172,7 @@
         </v-row>
       </v-card-text>
 
-      <!-- FOOTER -->
+      <!-- ===== FOOTER / ACCIONES ===== -->
       <v-divider class="mt-6 mb-0" />
 
       <div class="actions-wrap">
@@ -167,7 +202,7 @@
       </div>
     </v-form>
 
-    <!-- SNACKBAR / TOAST -->
+    <!-- ===== TOAST / SNACKBAR ===== -->
     <v-snackbar
       v-model="snackbar.show"
       :timeout="3000"
@@ -188,87 +223,92 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch, nextTick } from 'vue'
+import { computed, reactive, ref, watch, nextTick, onMounted } from 'vue'
 import { useDisplay } from 'vuetify'
 import { useSeatsStore } from '../stores'
+import api from '../services/api'
 
-/* props / emits */
+/* ===================== PROPS / EMITS ===================== */
 const props = defineProps({
   modelValue: { type: Object, default: null }
 })
 const emit = defineEmits(['saved','update:modelValue'])
 
-/* ui state */
+/* ===================== UI STATE ===================== */
 const { smAndDown } = useDisplay()
 const formRef = ref(null)
-const loading = ref(false)
+const loading = ref(false)         // submit
+const loadingPalcos = ref(false)   // cargando lista de palcos
+const loadingPeople = ref(false)   // cargando lista de personas/store
 const triedSubmit = ref(false)
 
-/* snackbar feedback global */
+/* snackbar / toast */
 const snackbar = reactive({
   show: false,
   text: '',
   ok: true
 })
-
-/* store */
-const store = useSeatsStore()
-if (!store.seats?.length && typeof store.initSeats === 'function') {
-  store.initSeats(['A','B','C','D'], 10)
+function showToast (text, ok = true) {
+  snackbar.text = text
+  snackbar.ok = ok
+  snackbar.show = true
 }
 
-/* form model */
-const empty = { name: '', doc: '', org: '', seat: null }
+/* ===================== PINIA STORE ===================== */
+const store = useSeatsStore()
+
+async function ensurePeopleLoaded () {
+  loadingPeople.value = true
+  try {
+    if (typeof store.ensureLoaded === 'function') {
+      await store.ensureLoaded()
+    } else if (typeof store.refresh === 'function') {
+      await store.refresh()
+    }
+  } finally {
+    loadingPeople.value = false
+  }
+}
+
+/* ===================== PALCOS ===================== */
+const palcos = ref([])
+const selectedPalcoId = ref(null)
+
+const palcoItems = computed(() => palcos.value)
+
+/* traemos palcos del backend */
+async function fetchPalcos() {
+  loadingPalcos.value = true
+  try {
+    const res = await api.get('/palcos')
+    palcos.value = Array.isArray(res.data) ? res.data : []
+
+    // si no hay palco elegido todavía, agarramos el primero
+    if (!selectedPalcoId.value && palcos.value.length > 0) {
+      selectedPalcoId.value = palcos.value[0].id
+    }
+  } catch (err) {
+    console.error('fetchPalcos error', err)
+    showToast('No se pudieron cargar los palcos', false)
+  } finally {
+    loadingPalcos.value = false
+  }
+}
+
+/* ===================== FORM MODEL ===================== */
+const empty = {
+  name: '',
+  doc: '',
+  org: '',
+  seat: null,
+}
 const form = reactive({ ...empty })
 
 const isEdit = computed(() => !!props.modelValue?.id)
 const personSeat = computed(() => props.modelValue?.seat ?? null)
 const personPresent = computed(() => !!props.modelValue?.present)
 
-/* ==== seats helpers ==== */
-const seatStatus = (code) => {
-  if (!code) return 'free'
-  if (typeof store.seatStatus === 'function') {
-    return store.seatStatus(code)
-  }
-  const who = (store.people ?? []).find(p => (p.seat ?? p.seatCode) === code)
-  if (!who) return 'free'
-  return who.present ? 'present' : 'assigned'
-}
-
-const seatOptions = computed(() => {
-  const matrix = store.seats ?? []
-  const allCodes = Array.isArray(matrix.flat)
-    ? matrix.flat()
-    : matrix.flat?.() ?? []
-  return allCodes.map(code => ({
-    code,
-    status: seatStatus(code),
-    title: code,
-    value: code,
-  }))
-})
-
-function statusLabel (st) {
-  if (st === 'present') return 'Presente'
-  if (st === 'assigned') return 'Asignado'
-  return 'Libre'
-}
-function statusColor (st) {
-  if (st === 'present') return 'success'
-  if (st === 'assigned') return 'warning'
-  return undefined
-}
-function statusVariant (st) {
-  return st === 'free' ? 'outlined' : 'flat'
-}
-
-const menuProps = computed(() => ({
-  maxHeight: smAndDown.value ? 260 : 360,
-  offset: smAndDown.value ? 6 : 8
-}))
-
-/* ==== validation ==== */
+/* ===================== VALIDACIÓN ===================== */
 const nameRules = [
   v => !!(v && String(v).trim()) || 'Requerido',
   v => String(v || '').trim().length >= 3 || 'Mínimo 3 caracteres'
@@ -282,33 +322,121 @@ const nameError = computed(() => {
   return !form.name || String(form.name).trim().length < 3
 })
 
-/* ==== sync externo -> form ==== */
-watch(() => props.modelValue, (v) => {
-  Object.assign(
-    form,
-    v
-      ? { ...empty, ...v, seat: v.seat ?? null }
-      : { ...empty }
-  )
-  triedSubmit.value = false
-}, { immediate: true })
+/* ===================== MAPEO DE FILAS POR PALCO ===================== */
+/*
+   Palco 1 (Principal): A-G
+   Palco 2 (A):        H-L
+   Palco 3 (B):        M-Q
+   Siempre 12 columnas (1..12)
+*/
+function rowsForPalco(id) {
+  if (id === 1) return ['A','B','C','D','E','F','G']
+  if (id === 2) return ['H','I','J','K','L']
+  if (id === 3) return ['M','N','O','P','Q']
+  // fallback por si aparece otro
+  return ['A','B','C','D']
+}
+const COLS = 12
 
-/* ==== helpers ==== */
-function normalizePayload (payload) {
+/* ===================== STATUS DE ASIENTO (usa store.people) ===================== */
+function seatStatusFromStore(code) {
+  if (!code) return 'free'
+  const p = (store.people || []).find(p => p.seat === code)
+  if (!p) return 'free'
+  return p.present ? 'present' : 'assigned'
+}
+
+function statusLabel (st) {
+  if (st === 'present')  return 'Presente'
+  if (st === 'assigned') return 'Asignado'
+  return 'Libre'
+}
+function statusColor (st) {
+  if (st === 'present')  return 'success'
+  if (st === 'assigned') return 'warning'
+  return undefined
+}
+function statusVariant (st) {
+  return st === 'free' ? 'outlined' : 'flat'
+}
+
+/* construimos TODAS las butacas posibles según palcoId seleccionado */
+const seatOptions = computed(() => {
+  const palcoId = selectedPalcoId.value
+  if (!palcoId) return []
+
+  const rows = rowsForPalco(palcoId)
+
+  // genera ['A1','A2',...,'A12','B1','B2',...]
+  const codes = []
+  for (const r of rows) {
+    for (let i = 1; i <= COLS; i++) {
+      codes.push(`${r}${i}`)
+    }
+  }
+
+  return codes.map(code => {
+    const st = seatStatusFromStore(code)
+    return {
+      code,
+      status: st,
+      title: code,
+      value: code,
+    }
+  })
+})
+
+/* menú props (responsive height) */
+const menuProps = computed(() => ({
+  maxHeight: smAndDown.value ? 260 : 360,
+  offset: smAndDown.value ? 6 : 8
+}))
+
+/* cuando cambio de PALCO, limpio el asiento elegido */
+watch(selectedPalcoId, () => {
+  form.seat = null
+})
+
+/* ===================== SYNC EXTERNO -> FORM ===================== */
+watch(
+  () => props.modelValue,
+  (v) => {
+    Object.assign(
+      form,
+      v
+        ? { ...empty, ...v, seat: v.seat ?? null }
+        : { ...empty }
+    )
+    triedSubmit.value = false
+
+    // si estoy editando y la butaca actual es ej "K7",
+    // inferimos palco según la letra de la fila
+    if (v && v.seat) {
+      const firstLetter = String(v.seat).charAt(0).toUpperCase()
+      if ('ABCDEFG'.includes(firstLetter)) selectedPalcoId.value = 1
+      else if ('HIJKL'.includes(firstLetter)) selectedPalcoId.value = 2
+      else if ('MNOPQ'.includes(firstLetter)) selectedPalcoId.value = 3
+    }
+  },
+  { immediate: true }
+)
+
+/* ===================== HELPERS SUBMIT ===================== */
+function normalizePayload(payload) {
   const out = { ...payload }
   if (out.seat === '') out.seat = null
   return out
 }
 
-async function refreshStore () {
-  if (typeof store.reload === 'function') {
-    await store.reload()
+async function refreshStore() {
+  if (typeof store.refresh === 'function') {
+    await store.refresh()
   } else if (typeof store.ensureLoaded === 'function') {
     await store.ensureLoaded()
   }
 }
 
-function safeResetForm () {
+function safeResetForm() {
   if (formRef.value?.reset) {
     formRef.value.reset()
   }
@@ -318,20 +446,13 @@ function safeResetForm () {
   Object.assign(form, { ...empty })
 }
 
-/* mostrar toast */
-function showToast (text, ok = true) {
-  snackbar.text = text
-  snackbar.ok = ok
-  snackbar.show = true
-}
-
-/* SUBMIT */
-async function onSubmit () {
+/* ===================== ACCIONES ===================== */
+async function onSubmit() {
   triedSubmit.value = true
   loading.value = true
 
   try {
-    // validar
+    // validar Vuetify
     const result = await formRef.value?.validate?.()
     const valid = typeof result === 'object' ? result.valid : !!result
     if (!valid) {
@@ -342,7 +463,7 @@ async function onSubmit () {
     const payload = normalizePayload(form)
 
     if (isEdit.value) {
-      // update
+      // UPDATE
       await store.updatePerson(props.modelValue.id, payload)
 
       showToast('Cambios guardados.', true)
@@ -350,7 +471,7 @@ async function onSubmit () {
       emit('update:modelValue', { ...props.modelValue, ...payload })
       emit('saved', { id: props.modelValue.id })
     } else {
-      // create
+      // CREATE
       const created = await store.createPerson(payload)
       const newId = created?.id ?? created ?? null
 
@@ -370,18 +491,24 @@ async function onSubmit () {
 
     await refreshStore()
   } catch (e) {
+    console.error('onSubmit error', e)
     showToast(e?.message || 'Error al guardar.', false)
   } finally {
     loading.value = false
   }
 }
 
-/* RESET MANUAL */
-function onReset () {
+function onReset() {
   safeResetForm()
   triedSubmit.value = false
   showToast('Formulario limpio.', true)
 }
+
+/* ===================== LIFECYCLE ===================== */
+onMounted(async () => {
+  await ensurePeopleLoaded()
+  await fetchPalcos()
+})
 </script>
 
 <style scoped>

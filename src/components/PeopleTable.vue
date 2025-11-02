@@ -9,7 +9,7 @@
       <div class="topbar">
         <v-text-field
           v-model="q"
-          label="Buscar por nombre, DNI u organismo"
+          label="Buscar por nombre, DNI, organismo, palco o asiento"
           class="search"
           prepend-inner-icon="mdi-magnify"
           clearable
@@ -30,6 +30,13 @@
           density="comfortable"
           class="people-table"
         >
+          <!-- PALCO -->
+          <template #item.palco="{ item }">
+            <span class="nowrap">
+              {{ palcoNameFromSeat(item.seat) || '—' }}
+            </span>
+          </template>
+
           <!-- ESTADO / PRESENCIA -->
           <template #item.present="{ item }">
             <v-chip
@@ -263,7 +270,9 @@
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" class="btn-text" @click="editDialogOpen=false">Cancelar</v-btn>
-          <v-btn class="btn-strong" color="primary" :disabled="busy" @click="saveEdit">Guardar cambios</v-btn>
+          <v-btn class="btn-strong" color="primary" :disabled="busy" @click="saveEdit">
+            Guardar cambios
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -285,17 +294,33 @@
         </v-card-title>
 
         <v-card-text>
+          <!-- Selector visual del PALCO -->
+          <div class="mb-4 d-flex flex-wrap gap-2 palco-selector">
+            <v-chip
+              v-for="opt in palcoOptions"
+              :key="opt.key"
+              :color="pickerPalco === opt.key ? 'primary' : undefined"
+              :class="['chip-palco', { active: pickerPalco === opt.key }]"
+              label
+              size="small"
+              @click="pickerPalco = opt.key"
+            >
+              {{ opt.label }}
+            </v-chip>
+          </div>
+
+          <!-- GRID DE ASIENTOS DEL PALCO SELECCIONADO -->
           <div class="grid-rows-wrap">
             <div class="grid-rows">
               <div
-                v-for="(row, rIdx) in store.seats"
+                v-for="(row, rIdx) in rowsForPicker"
                 :key="rIdx"
                 class="row"
               >
-                <div class="row-label">{{ row[0][0] }}</div>
+                <div class="row-label">{{ row.letter }}</div>
 
                 <v-btn
-                  v-for="code in row"
+                  v-for="code in row.codes"
                   :key="code"
                   :class="[
                     'seat',
@@ -362,35 +387,69 @@ const { smAndDown } = useDisplay()
 const store = useSeatsStore()
 
 /* =====================
-   TABLA / FILTRO / UI
+   HEADERS TABLA
 ===================== */
 const headers = [
   { title: 'ID',         key: 'id',        width: 70 },
   { title: 'Nombre',     key: 'name',      minWidth: 200 },
   { title: 'DNI',        key: 'doc',       width: 120 },
   { title: 'Organismo',  key: 'org',       minWidth: 200 },
+  { title: 'Palco',      key: 'palco',     width: 150 },
   { title: 'Asiento',    key: 'seat',      width: 110 },
   { title: 'Estado',     key: 'present',   width: 110 },
   { title: 'Acciones',   key: 'actions',   width: 260, sortable: false }
 ]
 
+/* =====================
+   MAPEO LETRA -> PALCO
+===================== */
+function palcoNameFromSeat(seatCode) {
+  if (!seatCode) return null
+  const first = String(seatCode).charAt(0).toUpperCase()
+
+  if ('ABCDEFG'.includes(first)) return 'PALCO PRINCIPAL'
+  if ('HIJKL'.includes(first))   return 'PALCO A'
+  if ('MNOPQ'.includes(first))   return 'PALCO B'
+
+  return '—'
+}
+
+/* También clave para el picker: nos da el palco KEY */
+function palcoKeyFromSeat(seatCode) {
+  if (!seatCode) return 'P' // default si no tiene asiento: principal? lo forzamos más abajo
+  const first = String(seatCode).charAt(0).toUpperCase()
+  if ('HIJKL'.includes(first))   return 'A'
+  if ('MNOPQ'.includes(first))   return 'B'
+  return 'P' // ABCDEFG => principal
+}
+
+/* =====================
+   BUSCADOR / FILTRADO
+===================== */
 const q = ref('')
 const busy = ref(false)
 
 const filtered = computed(() => {
   const k = q.value.trim().toLowerCase()
   if (!k) return store.people
-  return store.people.filter(p =>
-    p.name?.toLowerCase().includes(k) ||
-    (p.doc || '').toLowerCase().includes(k) ||
-    (p.org || '').toLowerCase().includes(k) ||
-    (p.seat || '').toLowerCase().includes(k)
-  )
+
+  return store.people.filter(p => {
+    const palcoName = palcoNameFromSeat(p.seat) || ''
+    return (
+      p.name?.toLowerCase().includes(k) ||
+      (p.doc || '').toLowerCase().includes(k) ||
+      (p.org || '').toLowerCase().includes(k) ||
+      (p.seat || '').toLowerCase().includes(k) ||
+      palcoName.toLowerCase().includes(k)
+    )
+  })
 })
 
 const tableHeight = computed(() => (smAndDown.value ? 360 : 480))
 
-/* status visual de cada asiento según store.people actual */
+/* =====================
+   STATUS VISUAL ASIENTO
+===================== */
 function seatStatusLocal(code) {
   const holder = store.people.find(p => p.seat === code)
   if (!holder) return 'free'
@@ -412,11 +471,107 @@ function seatVariant(code) {
   return st === 'free' ? 'outlined' : 'flat'
 }
 
-/* helper para mutar en memoria sin romper reactividad */
-function patchStore(id, patch) {
-  const idx = store.people.findIndex(p => p.id === id)
-  if (idx === -1) return
-  store.people[idx] = { ...store.people[idx], ...patch }
+/* =====================
+   ASIENTOS - PICKER
+===================== */
+const seatPickerOpen = ref(false)
+const seatTarget = ref(null)        // persona objetivo
+const selectedSeat = ref(null)      // asiento elegido dentro del modal
+const pickerPalco = ref('P')        // 'P' = Principal, 'A' = Palco A, 'B' = Palco B
+
+// opciones de palco para las chips
+const palcoOptions = [
+  { key: 'A', label: 'PALCO A' },
+  { key: 'P', label: 'PRINCIPAL' },
+  { key: 'B', label: 'PALCO B' },
+]
+
+// generador de estructura de filas para cada palco
+function genPalco(letters, perRow) {
+  return letters.map(letter => {
+    const codes = []
+    for (let i = 1; i <= perRow; i++) {
+      codes.push(`${letter}${i}`)
+    }
+    return { letter, codes }
+  })
+}
+
+// definimos los 3 mapas
+const palcoAmap        = genPalco(['L','K','J','I','H'], 10)
+const palcoPrincipalMap = genPalco(['G','F','E','D','C','B','A'], 12)
+const palcoBmap        = genPalco(['Q','P','O','N','M'], 10)
+
+// filas que se van a renderizar según pickerPalco
+const rowsForPicker = computed(() => {
+  if (pickerPalco.value === 'A') return palcoAmap
+  if (pickerPalco.value === 'B') return palcoBmap
+  return palcoPrincipalMap
+})
+
+// persona que ya tiene ese asiento?
+const currentHolder = computed(() => {
+  if (!selectedSeat.value) return null
+  return store.people.find(p => p.seat === selectedSeat.value) || null
+})
+
+// abrir modal
+function openSeatPicker(person) {
+  seatTarget.value   = person
+  selectedSeat.value = person.seat || null
+  // seteamos palco inicial según su asiento actual
+  pickerPalco.value  = palcoKeyFromSeat(person.seat)
+  seatPickerOpen.value = true
+}
+
+// cerrar modal
+function closeSeatPicker() {
+  seatPickerOpen.value = false
+  seatTarget.value = null
+  selectedSeat.value = null
+}
+
+// confirmar cambio / asignación
+async function confirmAssignSeat() {
+  if (!seatTarget.value || !selectedSeat.value) return
+  busy.value = true
+
+  const targetId    = seatTarget.value.id
+  const newSeatCode = selectedSeat.value
+
+  try {
+    // liberar a otra persona que ya lo tenga
+    const other = store.people.find(
+      p => p.id !== targetId && p.seat === newSeatCode
+    )
+    if (other) {
+      await store.updatePerson(other.id, { seat: null })
+    }
+
+    // asignar a la persona actual
+    await store.updatePerson(targetId, { seat: newSeatCode })
+
+    await store.refresh()
+    closeSeatPicker()
+  } catch (err) {
+    console.error('confirmAssignSeat error', err)
+  } finally {
+    busy.value = false
+  }
+}
+
+// limpiar asiento
+async function clearSeat(person) {
+  if (!person?.id) return
+  busy.value = true
+  try {
+    await store.updatePerson(person.id, { seat: null })
+    await store.refresh()
+  } catch (err) {
+    console.error('clearSeat error', err)
+  } finally {
+    busy.value = false
+  }
 }
 
 /* =====================
@@ -426,10 +581,7 @@ async function markPresent(person) {
   if (!person?.id) return
   busy.value = true
   try {
-    // usamos checkInById(id) que ya persiste y devuelve data fresca
-    const updated = await store.checkInById(person.id)
-    // store.checkInById ya actualiza store.people[idx] internamente
-    // igual refrescamos para estar seguros de sincronizar
+    await store.checkInById(person.id)
     await store.refresh()
   } catch (err) {
     console.error('markPresent error', err)
@@ -442,79 +594,10 @@ async function removePresent(person) {
   if (!person?.id) return
   busy.value = true
   try {
-    // persistimos { present:false }
     await store.updatePerson(person.id, { present: false })
     await store.refresh()
   } catch (err) {
     console.error('removePresent error', err)
-  } finally {
-    busy.value = false
-  }
-}
-
-/* =====================
-   ASIENTOS
-===================== */
-const seatPickerOpen = ref(false)
-const seatTarget = ref(null)     // persona actual (obj dentro de store.people)
-const selectedSeat = ref(null)   // código de asiento seleccionado en el modal
-
-function openSeatPicker(person) {
-  seatTarget.value = person
-  selectedSeat.value = person.seat || null
-  seatPickerOpen.value = true
-}
-
-function closeSeatPicker() {
-  seatPickerOpen.value = false
-  seatTarget.value = null
-  selectedSeat.value = null
-}
-
-const currentHolder = computed(() => {
-  if (!selectedSeat.value) return null
-  return store.people.find(p => p.seat === selectedSeat.value) || null
-})
-
-async function confirmAssignSeat() {
-  if (!seatTarget.value || !selectedSeat.value) return
-  busy.value = true
-
-  const targetId    = seatTarget.value.id
-  const newSeatCode = selectedSeat.value
-
-  try {
-    // 1. Buscar quién tiene actualmente ese asiento y sacárselo en backend también
-    const other = store.people.find(
-      p => p.id !== targetId && p.seat === newSeatCode
-    )
-    if (other) {
-      await store.updatePerson(other.id, { seat: null })
-    }
-
-    // 2. Asignar el asiento nuevo a la persona objetivo
-    await store.updatePerson(targetId, { seat: newSeatCode })
-
-    // 3. refrescar listado
-    await store.refresh()
-
-    closeSeatPicker()
-  } catch (err) {
-    console.error('confirmAssignSeat error', err)
-    // no cierro modal si falla para que el usuario reintente
-  } finally {
-    busy.value = false
-  }
-}
-
-async function clearSeat(person) {
-  if (!person?.id) return
-  busy.value = true
-  try {
-    await store.updatePerson(person.id, { seat: null })
-    await store.refresh()
-  } catch (err) {
-    console.error('clearSeat error', err)
   } finally {
     busy.value = false
   }
@@ -551,7 +634,7 @@ async function saveEdit() {
 }
 
 /* =====================
-   ELIMINAR
+   ELIMINAR PERSONA
 ===================== */
 const confirmOpen = ref(false)
 const toRemove = ref(null)
@@ -581,8 +664,6 @@ async function doRemove() {
 </script>
 
 <style scoped>
-/* === estilos exactamente como venías usando === */
-
 .card-contrast {
   background: #0e1230 !important;
   border: 1px solid rgba(255, 217, 81, .14);
@@ -635,7 +716,7 @@ async function doRemove() {
 }
 .people-table :deep(table) {
   table-layout: auto !important;
-  min-width: 1000px;
+  min-width: 1100px;
   width: 100%;
   border-collapse: collapse;
 }
@@ -666,6 +747,7 @@ async function doRemove() {
 .people-table :deep(tbody tr:hover) {
   background: rgba(255, 217, 81, 0.08) !important;
 }
+
 .actions-row {
   display: flex;
   flex-wrap: nowrap;
@@ -674,6 +756,7 @@ async function doRemove() {
   min-width: 220px;
   justify-content: flex-start;
 }
+
 .chip-strong {
   font-weight: 800;
   border-radius: 10px;
@@ -682,19 +765,41 @@ async function doRemove() {
   color: #eaf0ff !important;
   border-color: rgba(234,240,255,.28) !important;
 }
+
 .btn-icon {
   color: #ffd951 !important;
 }
 .btn-icon :deep(.v-icon) {
   color: #ffd951 !important;
 }
+
 .btn-text {
   color: #ffd951 !important;
 }
 .btn-strong {
   font-weight: 800;
 }
+
+/* Chips palco selector */
+.palco-selector {
+  gap: 6px;
+}
+.chip-palco {
+  background: rgba(255,217,81,.07) !important;
+  border: 1px solid rgba(255,217,81,.24) !important;
+  color: #ffd951 !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+}
+.chip-palco.active {
+  background: rgba(255,217,81,.3) !important;
+  color: #0b0d28 !important;
+  border-color: rgba(255,217,81,.5) !important;
+  box-shadow: 0 8px 20px rgba(0,0,0,.6);
+}
+
 .legend { gap: 6px; }
+
 .grid-rows-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -709,7 +814,7 @@ async function doRemove() {
 .row {
   display: grid;
   grid-auto-flow: column;
-  grid-template-columns: 44px repeat(10, 68px);
+  grid-template-columns: 44px repeat(12, 68px);
   gap: 8px;
   align-items: center;
 }
@@ -743,6 +848,7 @@ async function doRemove() {
   outline-offset: 0;
   box-shadow: 0 0 8px rgba(255,217,81,.75);
 }
+
 .edit-field :deep(.v-field) {
   background: rgba(255,255,255,0.06) !important;
   border-radius: 12px !important;
@@ -751,6 +857,7 @@ async function doRemove() {
 .edit-field :deep(.v-icon) {
   color: #ffd951 !important;
 }
+
 @media (max-width: 960px) {
   .search { max-width: 100%; }
   .actions-row {
@@ -763,7 +870,7 @@ async function doRemove() {
     min-width: max(480px, 100%);
   }
   .row {
-    grid-template-columns: 36px repeat(10, 60px);
+    grid-template-columns: 36px repeat(12, 60px);
     gap: 6px;
   }
   .row-label {

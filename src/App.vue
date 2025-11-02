@@ -68,21 +68,29 @@ import { useDisplay } from 'vuetify'
 import { useSeatsStore } from './stores'
 
 /* -------- Navegación -------- */
+/*  Agregamos "Admin Palcos" -> ruta de administración de asientos.
+    Ajustá el `to` si en tu router está registrado con otro path.
+*/
 const items = [
-  { text: 'Inicio',    to: '/',          icon: 'mdi-home-outline' },
-  { text: 'Check-In',  to: '/checkin',   icon: 'mdi-qrcode-scan' },
-  { text: 'Mapa',      to: '/asientos',  icon: 'mdi-seat' },
-  { text: 'Personas',  to: '/personas',  icon: 'mdi-account-group-outline' },
+  { text: 'Inicio',        to: '/',               icon: 'mdi-home-outline' },
+  { text: 'Check-In',      to: '/checkin',        icon: 'mdi-qrcode-scan' },
+  { text: 'Mapa',          to: '/asientos',       icon: 'mdi-seat' },
+  { text: 'Personas',      to: '/personas',       icon: 'mdi-account-group-outline' },
+  { text: 'Admin Palcos',  to: '/admin-palcos',   icon: 'mdi-cog-outline' },
 ]
 
 const route = useRoute()
-const isActive = (to) => (to === '/' ? route.path === '/' : route.path.startsWith(to))
+const isActive = (to) =>
+  (to === '/' ? route.path === '/' : route.path.startsWith(to))
 
 /* -------- Drawer responsivo -------- */
 const { mdAndUp } = useDisplay()
 const isDesktop = computed(() => mdAndUp.value)
 const drawer = ref(false)
-watch(isDesktop, (v) => { drawer.value = v })
+
+watch(isDesktop, (v) => {
+  drawer.value = v
+})
 
 /* -------- Store / autoRefresh -------- */
 const store = useSeatsStore()
@@ -117,6 +125,7 @@ const year = new Date().getFullYear()
   background: #ffd951 !important;     /* 🟡 amarillo sólido */
   color: #0b0d28 !important;           /* 🔵 texto/ícono azul */
   border-radius: 12px;
+
   /* apagar overlays/atenuaciones de Vuetify */
   --v-theme-overlay-multiplier: 0;
   --v-activated-opacity: 1;
@@ -147,4 +156,3 @@ const year = new Date().getFullYear()
   opacity: 1 !important;
 }
 </style>
-
