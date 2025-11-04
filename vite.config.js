@@ -2,9 +2,17 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vuetify from 'vite-plugin-vuetify'
+import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
   plugins: [vue(), vuetify({ autoImport: true })],
+
+  // 👇 Alias para usar "@/..." en imports
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
 
   server: {
     host: true,
@@ -12,13 +20,14 @@ export default defineConfig({
     strictPort: true,
     hmr: { host: '192.168.2.100', clientPort: 5173 },
 
-    // 🔁 Proxy útil solo si usás VITE_API_URL=/api en dev
+    // Proxy DEV -> backend PROD
     proxy: {
       '/api': {
         target: 'https://palco-app-backend.cingulado.org',
         changeOrigin: true,
-        secure: true, // Si falla por SSL, probar secure: false temporalmente
-        // rewrite: p => p, // Mantiene el prefijo /api
+        secure: true,
+        // 🔑 Esto permite que el navegador acepte la cookie `rt` en localhost
+        cookieDomainRewrite: '', // quita "Domain=..." => cookie host-only (localhost)
       },
     },
 

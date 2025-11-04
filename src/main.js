@@ -1,6 +1,4 @@
-// =========================
-// main.js (copy-paste final)
-// =========================
+// src/main.js
 
 // === Cache-buster / actualización forzada del frontend ===
 if (import.meta.env.PROD) {
@@ -16,7 +14,7 @@ if (import.meta.env.PROD) {
         localStorage.setItem('app-version', version)
         sessionStorage.setItem('app-reloaded-on-version', version)
 
-        // 1) Limpiar cachés (Vite/HTTP)
+        // 1️⃣ Limpiar caches HTTP/Vite
         if ('caches' in window) {
           try {
             const keys = await caches.keys()
@@ -26,7 +24,7 @@ if (import.meta.env.PROD) {
           }
         }
 
-        // 2) Desregistrar Service Workers (si hay)
+        // 2️⃣ Desregistrar Service Workers
         if ('serviceWorker' in navigator) {
           try {
             const regs = await navigator.serviceWorker.getRegistrations()
@@ -36,7 +34,7 @@ if (import.meta.env.PROD) {
           }
         }
 
-        // 3) Recargar (sin true, ya es ignorado por navegadores modernos)
+        // 3️⃣ Recargar la aplicación
         window.location.reload()
       }
     } catch (err) {
@@ -51,7 +49,7 @@ import { createPinia } from 'pinia'
 import { router } from './router'
 import { vuetify } from './plugins/vuetify'
 
-// 🟡 Iconos MDI (hamburguesa, etc.)
+// 🟡 Iconos MDI
 import '@mdi/font/css/materialdesignicons.css'
 
 // 🎨 Estilos globales de contraste (cards, menús, tablas, etc.)
