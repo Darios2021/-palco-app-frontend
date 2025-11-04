@@ -404,13 +404,14 @@
             {{ item.seat }}
           </v-chip>
         </template>
-
-        <template #item.presentAt="{ item }">
-          <div class="d-flex align-center text-dim">
-            <v-icon size="16" class="mr-1">mdi-clock-outline</v-icon>
-            <span class="font-mono">{{ formatDateTime(item.presentAt) }}</span>
-          </div>
-        </template>
+<!-- dentro de <v-data-table> -->
+<template #item.presentAt="{ item }">
+  <div class="d-flex align-center text-dim nowrap">
+    <v-icon size="16" class="mr-1">mdi-clock-outline</v-icon>
+    <!-- en mobile usa formato corto sin “a. m.” ni coma -->
+    <span class="font-mono">{{ formatDateTime(item.presentAt, smForTable.value) }}</span>
+  </div>
+</template>
 
         <template #no-data>
           <div class="py-8 text-medium-emphasis">
@@ -727,18 +728,33 @@ const initials = (name = '') => {
   return p.map(s => s[0]?.toUpperCase() || '').join('')
 }
 
-function formatDateTime(iso) {
+function formatDateTime(iso, compact = false) {
   if (!iso) return '—'
   try {
     const dt = new Date(iso)
+
+    if (compact) {
+      // móvil: dd/MM HH:mm en 24h, sin coma ni “a. m.”
+      return new Intl.DateTimeFormat('es-AR', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(dt).replace(',', '')
+    }
+
+    // desktop: estilo medio, 24h, sin coma
     return new Intl.DateTimeFormat('es-AR', {
       dateStyle: 'medium',
-      timeStyle: 'short'
-    }).format(dt)
+      timeStyle: 'short',
+      hour12: false,
+    }).format(dt).replace(',', '')
   } catch {
     return iso
   }
 }
+
 
 /* ===== Export CSV: exporta lo filtrado del palco actual ===== */
 function exportCSV() {
@@ -1281,7 +1297,44 @@ function exportCSV() {
     overflow-x: auto !important;
     overflow-y: hidden !important;
   }
+
+  
 }
+/* =========================================================
+   HOTFIX MOBILE: habilitar scroll horizontal en A / Principal / B
+   cuando están dentro de las tabs (v-window con .palcos-window)
+   ========================================================= */
+@media (max-width: 900px) {
+  /* Habilitar scroll horizontal en el contenedor de filas */
+  .palcos-window .palco-body,
+  .palcos-window .grid-rows-wrap {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Asegurar ancho mínimo para que aparezca la barra de desplazamiento */
+  .palcos-window .grid-rows {
+    min-width: max(480px, 100%) !important; /* ajustá 480px si necesitás más/menos */
+  }
+
+  /* Evitar que las reglas de laterales bloqueen el scroll dentro de las tabs */
+  .palcos-window .palco-lateral .palco-body,
+  .palcos-window .palco-lateral .grid-rows-wrap,
+  .palcos-window .palco-principal .palco-body,
+  .palcos-window .palco-principal .grid-rows-wrap {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
+  /* Evitar quiebre de línea en la celda de fecha/hora */
+.nowrap { 
+  white-space: nowrap; 
+  overflow: hidden; 
+  text-overflow: ellipsis; 
+}
+
+}
+
 </style>
 
 

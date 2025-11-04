@@ -85,7 +85,6 @@
                       </v-chip>
                     </div>
 
-                    <!-- Subtítulo limpio (sin repetir DNI/Organismo) -->
                     <div v-if="p.subtitle" class="person-sub text-truncate">
                       {{ p.subtitle }}
                     </div>
@@ -183,7 +182,7 @@
 
           <v-divider class="sec-divider" />
 
-          <!-- INFO (único lugar con DNI/Organismo) -->
+          <!-- INFO -->
           <div class="info-grid">
             <div class="info-field">
               <v-icon size="16" class="mr-1 dim-icon">mdi-card-account-details</v-icon>
@@ -236,17 +235,7 @@
               {{ selectedSeatCode ? 'Cambiar asiento' : 'Asignar asiento' }}
             </v-btn>
 
-            <v-btn
-              v-if="selectedSeatCode"
-              variant="flat"
-              class="action-btn action-free"
-              :loading="releasing"
-              :disabled="releasing"
-              @click="confirmRelease = true"
-            >
-              <v-icon class="mr-2" size="18">mdi-seat-passenger</v-icon>
-              Liberar asiento
-            </v-btn>
+            <!-- Botón LIBERAR ASIENTO REMOVIDO -->
 
             <v-btn
               v-if="isAlreadyPresent"
@@ -268,12 +257,22 @@
               <v-icon class="mr-2" size="18">mdi-account-plus</v-icon>
               Crear persona
             </v-btn>
+
+            <v-btn
+              variant="flat"
+              class="action-btn action-edit"
+              :disabled="!selectedId"
+              @click="openEditPerson"
+            >
+              <v-icon class="mr-2" size="18">mdi-account-edit</v-icon>
+              Editar persona
+            </v-btn>
           </div>
         </section>
       </v-expand-transition>
     </v-card-text>
 
-    <!-- ===== BOTÓN BUSCAR OTRA PERSONA (FUERA DEL CARD) ===== -->
+    <!-- ===== BOTÓN BUSCAR OTRA PERSONA ===== -->
     <div v-if="selected" class="below-reset">
       <v-btn variant="text" class="below-reset-btn" @click="clearAll">
         <v-icon class="mr-2" size="18">mdi-account-search</v-icon>
@@ -325,6 +324,23 @@
       />
     </v-dialog>
 
+    <!-- MODAL EDITAR -->
+    <v-dialog
+      v-model="editPersonOpen"
+      :fullscreen="isMobile"
+      :max-width="isMobile ? undefined : 720"
+      scrollable
+      class="create-dialog"
+    >
+      <PersonForm
+        :key="editablePerson?.id || 'edit'"
+        :person="editablePerson"
+        :mode="'edit'"
+        @saved="onPersonEdited"
+        @cancel="editPersonOpen = false"
+      />
+    </v-dialog>
+
     <v-snackbar
       v-model="snackbar.show"
       :timeout="3000"
@@ -343,9 +359,6 @@
     </v-snackbar>
   </v-card>
 </template>
-
-
-
 
 <script setup>
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
@@ -366,6 +379,10 @@ const unmarking = ref(false)
 const seatPickerOpen = ref(false)
 const assigning = ref(false)
 const createPersonOpen = ref(false)
+
+/* edición */
+const editPersonOpen = ref(false)
+const editablePerson = ref(null)
 
 const searchTerm = ref('')
 const showResults = ref(false)
@@ -415,7 +432,7 @@ const selectedPalcoName = computed(() => selectedSeatCode.value ? inferPalcoFrom
 const norm = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 const initials = name => String(name || '').trim().split(/\s+/).slice(0,2).map(x => x[0]?.toUpperCase() ?? '').join('')
 
-/* ===== PEOPLE (subtítulo limpio) ===== */
+/* ===== PEOPLE ===== */
 const allPeople = computed(() =>
   (store.people ?? []).map(p => {
     const seatCode = p.seatCode ?? p.seat ?? p.seat_code ?? null
@@ -586,7 +603,7 @@ async function handleSubmit () {
   finally { submitting.value = false }
 }
 
-/* ===== LIBERAR ===== */
+/* ===== LIBERAR ===== (mantengo lógica por si la usás desde otro flujo) */
 async function onReleaseSeat () {
   if (releasing.value) return
   releasing.value = true
@@ -630,8 +647,29 @@ async function onPersonCreated(newPerson){
     showToast('Persona creada. Actualizá la búsqueda para seleccionarla.', true)
   }
 }
-</script>
 
+/* ===== EDITAR PERSONA ===== */
+function openEditPerson () {
+  if (!selectedId.value) { showToast('Seleccioná una persona', false); return }
+  const fresh = (store.people ?? []).find(p => p.id == selectedId.value)
+  if (!fresh) { showToast('No se pudo cargar la persona', false); return }
+  // copiar para evitar mutaciones reactivas antes de guardar
+  editablePerson.value = JSON.parse(JSON.stringify(fresh))
+  editPersonOpen.value = true
+}
+async function onPersonEdited (updated) {
+  editPersonOpen.value = false
+  await refreshStore()
+  if (updated?.id && syncFromStoreById(updated.id)) {
+    showToast('Datos actualizados', true)
+  } else if (selectedId.value) {
+    syncFromStoreById(selectedId.value)
+    showToast('Datos actualizados', true)
+  } else {
+    showToast('Actualización realizada', true)
+  }
+}
+</script>
 
 <style scoped>
 /* ===== SHELL PRINCIPAL ===== */
@@ -759,6 +797,7 @@ async function onPersonCreated(newPerson){
 .action-free{ background:rgba(0,0,0,.4) !important; border-color:rgba(255,255,255,.2) !important; }
 .action-error{ background:rgba(220,53,69,.18) !important; border-color:rgba(220,53,69,.5) !important; color:#fff !important; }
 .action-create{ background:rgba(76,175,80,.18) !important; border-color:rgba(76,175,80,.5) !important; }
+.action-edit{ background:rgba(33,150,243,.18) !important; border-color:rgba(33,150,243,.5) !important; }
 
 /* botón buscar afuera */
 .below-reset{ display:flex; justify-content:flex-start; padding:0 20px 20px; }
