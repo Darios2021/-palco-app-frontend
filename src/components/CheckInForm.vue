@@ -14,9 +14,8 @@
     <v-divider class="ck-head-divider" />
 
     <v-card-text class="ck-inner">
-      <!-- ================== BLOQUE BUSCADOR (solo si NO hay persona seleccionada) ================== -->
+      <!-- ================== BUSCADOR ================== -->
       <section v-if="!selected" class="block-card">
-        <!-- INPUT BUSCADOR -->
         <div class="search-row">
           <v-text-field
             v-model="searchTerm"
@@ -31,18 +30,12 @@
             @keydown.up.prevent="moveHighlight(-1)"
             @keydown.enter.prevent="confirmHighlighted"
           />
-
-          <!-- LOADER TRES PUNTOS -->
           <div v-if="isTypingLoading" class="search-loader">
-            <div class="dot"></div>
-            <div class="dot"></div>
-            <div class="dot"></div>
+            <div class="dot"></div><div class="dot"></div><div class="dot"></div>
           </div>
         </div>
 
-        <!-- RESULTADOS / ESTADO -->
         <div class="results-shell">
-          <!-- LISTA DE RESULTADOS -->
           <template v-if="showResults && filteredResults.length">
             <div class="results-scroll">
               <div
@@ -61,7 +54,6 @@
                     <div class="result-top">
                       <span class="person-name text-truncate">{{ p.title }}</span>
 
-                      <!-- Chip de asiento -->
                       <v-chip
                         v-if="p.seatCode"
                         size="x-small"
@@ -72,7 +64,6 @@
                         {{ p.seatCode }}
                       </v-chip>
 
-                      <!-- Chip de palco -->
                       <v-chip
                         v-if="p.seatCode && p.palcoName"
                         size="x-small"
@@ -83,7 +74,6 @@
                         {{ p.palcoName }}
                       </v-chip>
 
-                      <!-- Si NO tiene asiento -->
                       <v-chip
                         v-else-if="!p.seatCode"
                         size="x-small"
@@ -95,13 +85,13 @@
                       </v-chip>
                     </div>
 
-                    <div class="person-sub text-truncate">
+                    <!-- Subtítulo limpio (sin repetir DNI/Organismo) -->
+                    <div v-if="p.subtitle" class="person-sub text-truncate">
                       {{ p.subtitle }}
                     </div>
                   </div>
                 </div>
 
-                <!-- dot estado -->
                 <div
                   class="state-dot"
                   :class="p.present ? 'is-present' : (p.seatCode ? 'is-assigned' : 'is-free')"
@@ -110,24 +100,21 @@
             </div>
           </template>
 
-          <!-- SIN RESULTADOS -->
           <template v-else-if="showResults && !isTypingLoading && !filteredResults.length">
             <div class="nores-row">
               <v-icon size="18" class="mr-2">mdi-alert-circle-outline</v-icon>
               <div class="nores-text">
-                Sin coincidencias. Cargá la persona en la sección Personas.
+                Sin coincidencias. Podés crearla con el botón de abajo.
               </div>
             </div>
           </template>
 
-          <!-- AYUDA DINÁMICA (estado inicial) -->
           <template v-else>
             <div class="helpbox">
               <div class="help-inner">
                 <div class="help-dynamic">
                   Probá con <span class="highlight-rot">{{ rotatingHint }}</span>
                 </div>
-
                 <div class="help-desc">
                   Podés escribir parte del DNI, apellido, organismo o jerarquía.
                 </div>
@@ -137,13 +124,9 @@
         </div>
       </section>
 
-      <!-- ================== BLOQUE DETALLE (solo si HAY persona seleccionada) ================== -->
+      <!-- ================== DETALLE ================== -->
       <v-expand-transition>
-        <section
-          v-if="selected"
-          class="block-card"
-        >
-          <!-- HEADER PERSONA -->
+        <section v-if="selected" class="block-card">
           <div class="person-head">
             <div class="person-left">
               <v-avatar size="54" class="person-avatar">
@@ -152,7 +135,7 @@
 
               <div class="person-idtext">
                 <div class="person-title">{{ selected.title }}</div>
-                <div class="person-sub2">{{ selected.subtitle }}</div>
+                <div v-if="selected.subtitle" class="person-sub2">{{ selected.subtitle }}</div>
               </div>
             </div>
 
@@ -182,7 +165,7 @@
               block
               @click="handleSubmit"
             >
-              REGISTRAR
+              INGRESO
             </v-btn>
 
             <v-chip
@@ -194,13 +177,13 @@
               variant="flat"
             >
               <v-icon start size="18">mdi-check-decagram</v-icon>
-              YA REGISTRADO
+              PRESENTE
             </v-chip>
           </div>
 
           <v-divider class="sec-divider" />
 
-          <!-- GRID INFO -->
+          <!-- INFO (único lugar con DNI/Organismo) -->
           <div class="info-grid">
             <div class="info-field">
               <v-icon size="16" class="mr-1 dim-icon">mdi-card-account-details</v-icon>
@@ -241,7 +224,6 @@
 
           <!-- ACCIONES -->
           <div class="actions-col">
-            <!-- Cambiar / asignar asiento -->
             <v-btn
               variant="flat"
               class="action-btn"
@@ -254,7 +236,6 @@
               {{ selectedSeatCode ? 'Cambiar asiento' : 'Asignar asiento' }}
             </v-btn>
 
-            <!-- Liberar asiento -->
             <v-btn
               v-if="selectedSeatCode"
               variant="flat"
@@ -267,7 +248,6 @@
               Liberar asiento
             </v-btn>
 
-            <!-- Quitar presente -->
             <v-btn
               v-if="isAlreadyPresent"
               variant="flat"
@@ -280,21 +260,28 @@
               Quitar presente
             </v-btn>
 
-            <!-- Buscar otra persona -->
             <v-btn
-              variant="text"
-              class="action-reset"
-              @click="clearAll"
+              variant="flat"
+              class="action-btn action-create"
+              @click="openCreatePerson"
             >
-              <v-icon class="mr-2" size="18">mdi-account-search</v-icon>
-              Buscar otra persona
+              <v-icon class="mr-2" size="18">mdi-account-plus</v-icon>
+              Crear persona
             </v-btn>
           </div>
         </section>
       </v-expand-transition>
     </v-card-text>
 
-    <!-- ===== MODAL LIBERAR ASIENTO ===== -->
+    <!-- ===== BOTÓN BUSCAR OTRA PERSONA (FUERA DEL CARD) ===== -->
+    <div v-if="selected" class="below-reset">
+      <v-btn variant="text" class="below-reset-btn" @click="clearAll">
+        <v-icon class="mr-2" size="18">mdi-account-search</v-icon>
+        Buscar otra persona
+      </v-btn>
+    </div>
+
+    <!-- ===== MODALES ===== -->
     <v-dialog v-model="confirmRelease" max-width="420">
       <v-card rounded="xl" class="modal-card">
         <v-card-title class="pt-4 pb-0 modal-title">
@@ -302,26 +289,19 @@
           Confirmar liberación
         </v-card-title>
         <v-card-text class="pt-2">
-          ¿Liberar el asiento
-          <strong>{{ selectedSeatCode }}</strong>
+          ¿Liberar el asiento <strong>{{ selectedSeatCode }}</strong>
           para <strong>{{ selected?.title }}</strong>?
         </v-card-text>
         <v-card-actions class="px-4 pb-4">
           <v-spacer />
           <v-btn variant="text" @click="confirmRelease = false">Cancelar</v-btn>
-          <v-btn
-            color="warning"
-            :loading="releasing"
-            :disabled="releasing"
-            @click="onReleaseSeat"
-          >
+          <v-btn color="warning" :loading="releasing" :disabled="releasing" @click="onReleaseSeat">
             Liberar
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <!-- ===== MODAL PICKER ASIENTO (usa SeatPickerDialog.vue) ===== -->
     <v-dialog
       v-model="seatPickerOpen"
       :fullscreen="isMobile"
@@ -329,12 +309,22 @@
       scrollable
       class="seat-dialog"
     >
-      <SeatPickerDialog
-        @select="onSeatPicked"
+      <SeatPickerDialog @select="onSeatPicked" />
+    </v-dialog>
+
+    <v-dialog
+      v-model="createPersonOpen"
+      :fullscreen="isMobile"
+      :max-width="isMobile ? undefined : 720"
+      scrollable
+      class="create-dialog"
+    >
+      <PersonForm
+        @saved="onPersonCreated"
+        @cancel="createPersonOpen = false"
       />
     </v-dialog>
 
-    <!-- ===== TOAST ===== -->
     <v-snackbar
       v-model="snackbar.show"
       :timeout="3000"
@@ -354,120 +344,82 @@
   </v-card>
 </template>
 
+
+
+
 <script setup>
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useDisplay } from 'vuetify'
 import { useSeatsStore } from '../stores'
 import SeatPickerDialog from './SeatPickerDialog.vue'
+import PersonForm from './PersonForm.vue'
 
 const store = useSeatsStore()
-
 const { smAndDown } = useDisplay()
 const isMobile = computed(() => smAndDown.value)
 
 /* ===== STATE ===== */
-const submitting        = ref(false)
-const releasing         = ref(false)
-const unmarking         = ref(false)
+const submitting = ref(false)
+const releasing = ref(false)
+const unmarking = ref(false)
 
-const seatPickerOpen    = ref(false)
-const assigning         = ref(false)
+const seatPickerOpen = ref(false)
+const assigning = ref(false)
+const createPersonOpen = ref(false)
 
-const searchTerm        = ref('')
-const showResults       = ref(false)
-const highlightedIndex  = ref(-1)
-const isTypingLoading   = ref(false)
-const typingTimer       = ref(null)
+const searchTerm = ref('')
+const showResults = ref(false)
+const highlightedIndex = ref(-1)
+const isTypingLoading = ref(false)
+const typingTimer = ref(null)
 
-const selected          = ref(null)
+const selected = ref(null)
 
-const selectedSeatCode  = ref(null)
-const selectedSeatId    = ref(null)
-const selectedPresent   = ref(false)
-const selectedDoc       = ref('')
-const selectedOrg       = ref('')
+const selectedSeatCode = ref(null)
+const selectedSeatId = ref(null)
+const selectedPresent = ref(false)
+const selectedDoc = ref('')
+const selectedOrg = ref('')
 
-const confirmRelease    = ref(false)
-const lastSeat          = ref(null)
+const confirmRelease = ref(false)
+const lastSeat = ref(null)
 
-const snackbar = ref({
-  show: false,
-  text: '',
-  ok: true
-})
+const snackbar = ref({ show:false, text:'', ok:true })
 
-/* ===== MAPEO DE LETRA -> PALCO ===== */
-/* A-G => Principal, H-L => A, M-Q => B */
+/* ===== PALCO ===== */
 function inferPalcoFromSeat (seatCode) {
   if (!seatCode) return ''
   const rowLetter = String(seatCode)[0]?.toUpperCase() || ''
-
   const principalSet = new Set(['A','B','C','D','E','F','G'])
   const palcoASet    = new Set(['H','I','J','K','L'])
   const palcoBSet    = new Set(['M','N','O','P','Q'])
-
   if (principalSet.has(rowLetter)) return 'Palco Principal'
   if (palcoASet.has(rowLetter))    return 'Palco A'
   if (palcoBSet.has(rowLetter))    return 'Palco B'
-
-  // fallback
   return 'Palco Principal'
 }
 
-/* ===== TEXTO ROTATIVO DEL HINT ===== */
-const hintWords = [
-  'DNI',
-  'Nombre',
-  'Jerarquía',
-  'Cargo',
-  'Organismo'
-]
+/* ===== HINT ===== */
+const hintWords = ['DNI','Nombre','Jerarquía','Cargo','Organismo']
 const rotatingHint = ref(hintWords[0])
-let hintIdx = 0
-let hintTimer = null
-
-function advanceHint() {
-  hintIdx = (hintIdx + 1) % hintWords.length
-  rotatingHint.value = hintWords[hintIdx]
-}
+let hintIdx = 0, hintTimer = null
+function advanceHint(){ hintIdx = (hintIdx + 1) % hintWords.length; rotatingHint.value = hintWords[hintIdx] }
 
 /* ===== COMPUTED ===== */
 const selectedId = computed(() => selected.value?.value ?? null)
 const isAlreadyPresent = computed(() => !!selectedPresent.value)
+const chipText = computed(() => isAlreadyPresent.value ? 'Presente' : (selectedSeatCode.value ? 'Asignado' : 'Sin asignar'))
+const selectedPalcoName = computed(() => selectedSeatCode.value ? inferPalcoFromSeat(selectedSeatCode.value) : '')
 
-const chipText = computed(() => {
-  if (isAlreadyPresent.value) return 'Presente'
-  if (selectedSeatCode.value) return 'Asignado'
-  return 'Sin asignar'
-})
+/* ===== UTILS ===== */
+const norm = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+const initials = name => String(name || '').trim().split(/\s+/).slice(0,2).map(x => x[0]?.toUpperCase() ?? '').join('')
 
-/* palco name para la persona seleccionada en el detalle */
-const selectedPalcoName = computed(() => {
-  return selectedSeatCode.value
-    ? inferPalcoFromSeat(selectedSeatCode.value)
-    : ''
-})
-
-/* normalizador búsqueda */
-const norm = s =>
-  (s || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim()
-
-const initials = name =>
-  String(name || '')
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map(x => x[0]?.toUpperCase() ?? '')
-    .join('')
-
-/* data de store -> formato buscador */
+/* ===== PEOPLE (subtítulo limpio) ===== */
 const allPeople = computed(() =>
   (store.people ?? []).map(p => {
     const seatCode = p.seatCode ?? p.seat ?? p.seat_code ?? null
+    const cleanSubtitle = p.rank || p.cargo || p.role || ''
     return {
       title: p.name,
       value: p.id,
@@ -475,82 +427,50 @@ const allPeople = computed(() =>
       seatCode: seatCode,
       present:  !!p.present,
       palcoName: seatCode ? inferPalcoFromSeat(seatCode) : '',
-      subtitle: [p.org, p.doc].filter(Boolean).join(' · ') || '—',
+      subtitle: cleanSubtitle,
       doc: p.doc || '',
       org: p.org || '',
-      _keywords: norm([p.name, p.doc, p.org].filter(Boolean).join(' '))
+      _keywords: norm([p.name, p.doc, p.org, cleanSubtitle].filter(Boolean).join(' '))
     }
   })
 )
 
-/* filtrado live */
+/* ===== FILTRO ===== */
 const filteredResults = computed(() => {
   const q = norm(searchTerm.value)
   if (!q) return []
-  return allPeople.value
-    .filter(p => p._keywords.includes(q))
-    .slice(0, 20)
+  return allPeople.value.filter(p => p._keywords.includes(q)).slice(0, 20)
 })
 
 /* ===== LIFECYCLE ===== */
 onMounted(async () => {
-  // cargar data inicial
   await ensureStoreLoaded()
-
-  // iniciar rotación del hint
   hintTimer = setInterval(advanceHint, 1000)
 })
-
-onBeforeUnmount(() => {
-  if (hintTimer) clearInterval(hintTimer)
-})
+onBeforeUnmount(() => { if (hintTimer) clearInterval(hintTimer) })
 
 async function ensureStoreLoaded () {
   if (typeof store.ensureLoaded === 'function') {
-    try {
-      isTypingLoading.value = true
-      await store.ensureLoaded()
-    } finally {
-      isTypingLoading.value = false
-    }
+    try { isTypingLoading.value = true; await store.ensureLoaded() }
+    finally { isTypingLoading.value = false }
   }
 }
 
-/* ===== WATCH TYPING ===== */
+/* ===== TYPING ===== */
 watch(searchTerm, (val) => {
-  if (!val) {
-    resetSelectionSoft()
-    showResults.value = false
-    highlightedIndex.value = -1
-    stopTypingLoader()
-    return
-  }
-
+  if (!val) { resetSelectionSoft(); showResults.value = false; highlightedIndex.value = -1; stopTypingLoader(); return }
   startTypingLoader()
-
   if (typingTimer.value) clearTimeout(typingTimer.value)
   typingTimer.value = setTimeout(() => {
     stopTypingLoader()
-
-    if (filteredResults.value.length) {
-      highlightedIndex.value = 0
-    } else {
-      highlightedIndex.value = -1
-    }
-
+    highlightedIndex.value = filteredResults.value.length ? 0 : -1
     showResults.value = true
   }, 200)
 })
+function startTypingLoader(){ isTypingLoading.value = true }
+function stopTypingLoader(){ isTypingLoading.value = false }
 
-/* ===== LOADER CONTROL ===== */
-function startTypingLoader () {
-  isTypingLoading.value = true
-}
-function stopTypingLoader () {
-  isTypingLoading.value = false
-}
-
-/* ===== NAVEGACIÓN CON TECLADO ===== */
+/* ===== NAV TECLADO ===== */
 function moveHighlight (dir) {
   if (!showResults.value || !filteredResults.value.length) return
   const max = filteredResults.value.length - 1
@@ -559,14 +479,13 @@ function moveHighlight (dir) {
   if (next > max) next = 0
   highlightedIndex.value = next
 }
-
 function confirmHighlighted () {
   if (!showResults.value) return
   const p = filteredResults.value[highlightedIndex.value]
   if (p) pickPerson(p)
 }
 
-/* ===== SELECCIONAR PERSONA ===== */
+/* ===== SELECT ===== */
 function pickPerson (p) {
   selected.value         = p
   selectedSeatCode.value = p.seatCode || null
@@ -574,24 +493,20 @@ function pickPerson (p) {
   selectedPresent.value  = !!p.present
   selectedDoc.value      = p.doc || ''
   selectedOrg.value      = p.org || ''
-
-  // al seleccionar escondemos el buscador
   searchTerm.value = p.title
   showResults.value = false
 }
 
 /* ===== LIMPIEZA ===== */
-function resetSelectionSoft () {
-  hideToast()
-}
+function resetSelectionSoft () { hideToast() }
 function clearAll () {
-  searchTerm.value       = ''
-  selected.value         = null
+  searchTerm.value = ''
+  selected.value = null
   selectedSeatCode.value = null
-  selectedSeatId.value   = null
-  selectedPresent.value  = false
-  selectedDoc.value      = ''
-  selectedOrg.value      = ''
+  selectedSeatId.value = null
+  selectedPresent.value = false
+  selectedDoc.value = ''
+  selectedOrg.value = ''
   hideToast()
 }
 
@@ -599,30 +514,18 @@ function clearAll () {
 async function tryCall (name, ...args) {
   const fn = store?.[name]
   if (typeof fn !== 'function') return undefined
-  try {
-    return await fn(...args)
-  } catch {
-    return undefined
-  }
+  try { return await fn(...args) } catch { return undefined }
 }
-
-async function refreshStore () {
-  await (
-    store.refresh?.() ||
-    store.ensureLoaded?.() ||
-    Promise.resolve()
-  )
-}
+async function refreshStore () { await (store.refresh?.() || store.ensureLoaded?.() || Promise.resolve()) }
 
 function syncFromPerson (p) {
   const seatCode = p.seatCode ?? p.seat ?? p.seat_code ?? null
-
   selectedSeatCode.value = seatCode
   selectedSeatId.value   = p.seatId   ?? p.seat_id ?? selectedSeatId.value ?? null
   selectedPresent.value  = !!p.present
   selectedDoc.value      = p.doc || selectedDoc.value
   selectedOrg.value      = p.org || selectedOrg.value
-
+  const cleanSubtitle = p.rank || p.cargo || p.role || ''
   selected.value = {
     title: p.name,
     value: p.id,
@@ -630,732 +533,249 @@ function syncFromPerson (p) {
     seatCode: seatCode,
     present: p.present,
     palcoName: seatCode ? inferPalcoFromSeat(seatCode) : '',
-    subtitle: [p.org, p.doc].filter(Boolean).join(' · ') || '—',
+    subtitle: cleanSubtitle,
     doc: p.doc,
     org: p.org
   }
 }
-
 function syncFromStoreById (idLike) {
   const fresh = (store.people ?? []).find(p => p.id == idLike)
-  if (fresh) {
-    syncFromPerson(fresh)
-    return true
-  }
+  if (fresh) { syncFromPerson(fresh); return true }
   return false
 }
 
 /* ===== TOAST ===== */
-function showToast(message, ok = true) {
-  snackbar.value.text = message
-  snackbar.value.ok = ok
-  snackbar.value.show = true
-}
-function hideToast() {
-  snackbar.value.show = false
-}
+function showToast(message, ok = true){ snackbar.value = { text: message, ok, show: true } }
+function hideToast(){ snackbar.value.show = false }
 
-/* ===== SEAT PICKER (SeatPickerDialog.vue) ===== */
-function openSeatPicker() {
-  seatPickerOpen.value = true
-}
+/* ===== SEAT PICKER ===== */
+function openSeatPicker(){ seatPickerOpen.value = true }
 async function onSeatPicked(newSeat) {
-  // viene del hijo SeatPickerDialog cuando hace "Confirmar"
-  // Acá reasignamos asiento y cerramos el modal.
-  if (!selectedId.value) {
-    showToast('Seleccioná una persona', false)
-    seatPickerOpen.value = false
-    return
-  }
-  if (!newSeat) {
-    showToast('Seleccioná un asiento', false)
-    seatPickerOpen.value = false
-    return
-  }
-
+  if (!selectedId.value) { showToast('Seleccioná una persona', false); seatPickerOpen.value = false; return }
+  if (!newSeat) { showToast('Seleccioná un asiento', false); seatPickerOpen.value = false; return }
   assigning.value = true
   try {
     const targetId = selectedId.value
-
-    // Si otra persona tenía ese asiento, la desasignamos
     const other = store.people.find(p => p.id !== targetId && (p.seat === newSeat || p.seatCode === newSeat || p.seat_code === newSeat))
-    if (other) {
-      await store.updatePerson(other.id, { seat: null })
-    }
-
-    // Asignar nuevo asiento a la persona seleccionada
+    if (other) await store.updatePerson(other.id, { seat: null })
     await store.updatePerson(targetId, { seat: newSeat })
-
-    await refreshStore()
-    syncFromStoreById(targetId)
-
+    await refreshStore(); syncFromStoreById(targetId)
     showToast('Asiento asignado', true)
-  } catch (err) {
-    showToast('Error al asignar asiento', false)
-  } finally {
-    assigning.value = false
-    seatPickerOpen.value = false
-  }
+  } catch { showToast('Error al asignar asiento', false) }
+  finally { assigning.value = false; seatPickerOpen.value = false }
 }
 
-/* ===== REGISTRAR PRESENTE ===== */
+/* ===== REGISTRAR ===== */
 async function handleSubmit () {
   if (submitting.value) return
   submitting.value = true
-
-  if (!selected.value) {
-    showToast('Seleccioná una persona', false)
-    submitting.value = false
-    return
-  }
-
+  if (!selected.value) { showToast('Seleccioná una persona', false); submitting.value = false; return }
   try {
     const id = selectedId.value
-
-    // chequeo estado vivo en store para evitar doble click
     const live = (store.people ?? []).find(p => p.id == id)
-    if (live?.present || selectedPresent.value) {
-      showToast('Ya estaba presente', true)
-      submitting.value = false
-      return
-    }
-
+    if (live?.present || selectedPresent.value) { showToast('Ya estaba presente', true); submitting.value = false; return }
     const updated =
       await tryCall('checkInById', id) ??
       await tryCall('setPresent', id, true) ??
       await tryCall('updatePerson', id, { present: true })
-
-    if (updated) {
-      syncFromPerson(updated)
-    } else {
-      // fallback optimista
-      selectedPresent.value = true
-      if (selected.value) selected.value.present = true
-    }
-
+    if (updated) { syncFromPerson(updated) } else { selectedPresent.value = true; if (selected.value) selected.value.present = true }
     lastSeat.value = selectedSeatCode.value || null
-
-    await refreshStore()
-    syncFromStoreById(id)
-
+    await refreshStore(); syncFromStoreById(id)
     showToast('Registrado correctamente', true)
-    submitting.value = false
-  } catch (e) {
-    showToast('No se pudo registrar', false)
-    submitting.value = false
-  }
+  } catch { showToast('No se pudo registrar', false) }
+  finally { submitting.value = false }
 }
 
-/* ===== LIBERAR ASIENTO ===== */
+/* ===== LIBERAR ===== */
 async function onReleaseSeat () {
   if (releasing.value) return
   releasing.value = true
-
   if (!selectedId.value || !selectedSeatCode.value) {
     showToast('No hay asiento para liberar', false)
-    releasing.value = false
-    confirmRelease.value = false
-    return
+    releasing.value = false; confirmRelease.value = false; return
   }
-
   try {
     const personId = selectedId.value
     await store.updatePerson(personId, { seat: null })
-
-    await refreshStore()
-    syncFromStoreById(personId)
-
+    await refreshStore(); syncFromStoreById(personId)
     showToast('Asiento liberado', true)
-    releasing.value = false
-    confirmRelease.value = false
-  } catch (e) {
-    showToast('Error al liberar el asiento', false)
-    releasing.value = false
-    confirmRelease.value = false
-  }
+  } catch { showToast('Error al liberar el asiento', false) }
+  finally { releasing.value = false; confirmRelease.value = false }
 }
 
 /* ===== QUITAR PRESENTE ===== */
 async function onRemovePresenceLikeTable () {
   if (unmarking.value) return
   unmarking.value = true
-
-  if (!selectedId.value) {
-    showToast('No hay persona seleccionada', false)
-    unmarking.value = false
-    return
-  }
-
+  if (!selectedId.value) { showToast('No hay persona seleccionada', false); unmarking.value = false; return }
   try {
     const personId = selectedId.value
     await store.updatePerson(personId, { present: false })
-
     selectedPresent.value = false
     if (selected.value) selected.value.present = false
-
-    await refreshStore()
-    syncFromStoreById(personId)
-
+    await refreshStore(); syncFromStoreById(personId)
     showToast('Presencialidad desactivada', true)
-    unmarking.value = false
-  } catch (e) {
-    showToast('No se pudo desactivar presencialidad', false)
-    unmarking.value = false
+  } catch { showToast('No se pudo desactivar presencialidad', false) }
+  finally { unmarking.value = false }
+}
+
+/* ===== CREAR PERSONA ===== */
+function openCreatePerson(){ createPersonOpen.value = true }
+async function onPersonCreated(newPerson){
+  createPersonOpen.value = false
+  await refreshStore()
+  if (newPerson?.id && syncFromStoreById(newPerson.id)) {
+    showToast('Persona creada', true)
+  } else {
+    showToast('Persona creada. Actualizá la búsqueda para seleccionarla.', true)
   }
 }
 </script>
 
+
 <style scoped>
 /* ===== SHELL PRINCIPAL ===== */
-.ck-shell {
-  background:#0e1230;
-  color:#eaf0ff;
-  border:1px solid rgba(255,217,81,.12);
-  box-shadow:0 12px 32px rgba(0,0,0,.6);
-  max-width:900px;
-  margin-inline:auto;
-}
+.ck-shell{ background:#0e1230; color:#eaf0ff; border:1px solid rgba(255,217,81,.12); box-shadow:0 12px 32px rgba(0,0,0,.6); max-width:900px; margin-inline:auto; }
 
 /* HEADER */
-.ck-headbar{
-  display:flex;
-  align-items:flex-start;
-  padding:16px 20px;
-  border-bottom:1px solid rgba(255,217,81,.12);
-  background:radial-gradient(circle at 0% 0%, rgba(255,217,81,.08) 0%, rgba(14,18,48,0) 60%);
-  color:#eaf0ff;
-}
-.ck-head-left{
-  display:flex;
-  align-items:flex-start;
-  gap:12px;
-}
-.ck-head-icon{
-  color:#ffd951;
-}
-.ck-head-text{
-  line-height:1.3;
-}
-.ck-head-kicker{
-  color:#ffd951;
-  font-weight:700;
-  font-size:.8rem;
-  letter-spacing:.6px;
-  text-transform:uppercase;
-}
-.ck-head-title{
-  font-weight:800;
-  font-size:1rem;
-  line-height:1.3;
-  color:#eaf0ff;
-}
-@media(min-width:600px){
-  .ck-head-title{ font-size:1.05rem; }
-}
-.ck-head-divider{
-  opacity:.08;
-  border-color:rgba(255,217,81,.12) !important;
-}
+.ck-headbar{ display:flex; align-items:flex-start; padding:16px 20px; border-bottom:1px solid rgba(255,217,81,.12);
+  background:radial-gradient(circle at 0% 0%, rgba(255,217,81,.08) 0%, rgba(14,18,48,0) 60%); color:#eaf0ff; }
+.ck-head-left{ display:flex; align-items:flex-start; gap:12px; }
+.ck-head-icon{ color:#ffd951; }
+.ck-head-text{ line-height:1.3; }
+.ck-head-kicker{ color:#ffd951; font-weight:700; font-size:.8rem; letter-spacing:.6px; text-transform:uppercase; }
+.ck-head-title{ font-weight:800; font-size:1rem; line-height:1.3; color:#eaf0ff; }
+@media(min-width:600px){ .ck-head-title{ font-size:1.05rem; } }
+.ck-head-divider{ opacity:.08; border-color:rgba(255,217,81,.12) !important; }
 
-/* body interno */
-.ck-inner{
-  padding:20px;
-  display:flex;
-  flex-direction:column;
-  gap:20px;
-  color:#eaf0ff;
-}
+/* BODY */
+.ck-inner{ padding:20px; display:flex; flex-direction:column; gap:20px; color:#eaf0ff; }
 
-/* ===== BLOQUE CARD ===== */
-.block-card{
-  background:#0f1433;
-  border:1px solid rgba(255,217,81,.12);
-  border-radius:16px;
-  box-shadow:0 8px 24px rgba(0,0,0,.65);
-  padding:16px 16px 20px;
-  color:#eaf0ff;
-  width:100%;
-}
+/* CARD */
+.block-card{ background:#0f1433; border:1px solid rgba(255,217,81,.12); border-radius:16px; box-shadow:0 8px 24px rgba(0,0,0,.65); padding:16px 16px 20px; color:#eaf0ff; width:100%; }
 
-/* ================= BUSCADOR ================= */
-.search-row{
-  position:relative;
-  margin-bottom:16px;
-}
-.search-input :deep(.v-field){
-  border-radius:12px !important;
-  background:rgba(14,18,48,.6) !important;
-  border:1px solid rgba(255,255,255,.18) !important;
-  min-height:54px !important;
-  box-shadow:
-    0 8px 24px rgba(0,0,0,.8),
-    0 0 32px rgba(255,217,81,.08);
-  color:#fff !important;
-}
-.search-input :deep(.v-field__prepend-inner .v-icon){
-  color:#fff !important;
-  opacity:.9;
-}
-.search-input :deep(input){
-  color:#fff !important;
-  font-weight:600;
-  letter-spacing:.02em;
-  font-size:1rem;
-}
-.search-input :deep(.v-field-label){
-  color:rgba(255,255,255,.6) !important;
-  font-weight:500;
-  letter-spacing:.02em;
-  font-size:.8rem;
-}
+/* ===== BUSCADOR ===== */
+.search-row{ position:relative; margin-bottom:16px; }
+.search-input :deep(.v-field){ border-radius:12px !important; background:rgba(14,18,48,.6) !important; border:1px solid rgba(255,255,255,.18) !important;
+  min-height:54px !important; box-shadow:0 8px 24px rgba(0,0,0,.8), 0 0 32px rgba(255,217,81,.08); color:#fff !important; }
+.search-input :deep(.v-field__prepend-inner .v-icon){ color:#fff !important; opacity:.9; }
+.search-input :deep(input){ color:#fff !important; font-weight:600; letter-spacing:.02em; font-size:1rem; }
+.search-input :deep(.v-field-label){ color:rgba(255,255,255,.6) !important; font-weight:500; letter-spacing:.02em; font-size:.8rem; }
 
 /* loader */
-.search-loader{
-  position:absolute;
-  right:16px;
-  top:0;
-  bottom:0;
-  display:flex;
-  align-items:center;
-  gap:4px;
-  pointer-events:none;
-}
-.search-loader .dot{
-  width:6px;
-  height:6px;
-  border-radius:999px;
-  background:#fff;
-  opacity:.4;
-  animation:pulseDots 1s infinite;
-}
-.search-loader .dot:nth-child(2){ animation-delay:.15s; }
-.search-loader .dot:nth-child(3){ animation-delay:.3s; }
+.search-loader{ position:absolute; right:16px; top:0; bottom:0; display:flex; align-items:center; gap:4px; pointer-events:none; }
+.search-loader .dot{ width:6px; height:6px; border-radius:999px; background:#fff; opacity:.4; animation:pulseDots 1s infinite; }
+.search-loader .dot:nth-child(2){ animation-delay:.15s; } .search-loader .dot:nth-child(3){ animation-delay:.3s; }
+@keyframes pulseDots{ 0%,80%,100%{opacity:.3; transform:scale(.8)} 40%{opacity:1; transform:scale(1)} }
 
-@keyframes pulseDots {
-  0%,80%,100% { opacity:.3; transform:scale(.8); }
-  40%        { opacity:1; transform:scale(1); }
-}
+/* resultados */
+.results-shell{ background:#0e1230; border:1px solid rgba(255,217,81,.12); border-radius:14px; box-shadow:0 16px 32px rgba(0,0,0,.7);
+  color:#fff; min-height:88px; max-height:280px; display:flex; flex-direction:column; overflow:hidden; }
+.results-scroll{ flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch; max-height:280px; }
 
-/* result container */
-.results-shell{
-  background:#0e1230;
-  border:1px solid rgba(255,217,81,.12);
-  border-radius:14px;
-  box-shadow:0 16px 32px rgba(0,0,0,.7);
-  color:#fff;
-  min-height:88px;
-  max-height:280px;
-  display:flex;
-  flex-direction:column;
-  overflow:hidden;
-}
-.results-scroll{
-  flex:1 1 auto;
-  overflow-y:auto;
-  -webkit-overflow-scrolling:touch;
-  max-height:280px;
-}
-
-/* fila resultado */
-.result-row{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  padding:14px 16px;
-  border-bottom:1px solid rgba(255,255,255,.07);
-  background:#0e1230;
-  color:#fff;
-  cursor:pointer;
-  transition:background .08s;
-}
-.result-row:last-child{
-  border-bottom:none;
-}
-.result-row.is-active{
-  background:#1a214a;
-}
-.result-left{
-  display:flex;
-  align-items:flex-start;
-  gap:12px;
-  min-width:0;
-  flex:1;
-}
-.result-avatar{
-  flex-shrink:0;
-  background:rgba(255,217,81,.18) !important;
-  border:1px solid rgba(255,217,81,.4);
-  box-shadow:0 2px 6px rgba(0,0,0,.6);
-  color:#ffd951;
-  font-weight:800;
-  letter-spacing:.05em;
-}
-.ra-text{
-  font-size:.8rem;
-  font-weight:700;
-  line-height:1;
-  color:#ffd951;
-  text-shadow:0 0 8px rgba(255,217,81,.6);
-}
-.result-info{
-  min-width:0;
-  flex:1;
-}
-.result-top{
-  display:flex;
-  flex-wrap:wrap;
-  align-items:center;
-  gap:6px;
-  min-width:0;
-  font-size:.9rem;
-  line-height:1.3;
-  font-weight:600;
-  color:#fff;
-}
-.person-name{
-  font-weight:600;
-  color:#fff;
-}
-.person-sub{
-  font-size:.8rem;
-  line-height:1.2;
-  opacity:.75;
-  color:#fff;
-  word-break:break-word;
-}
+.result-row{ display:flex; align-items:flex-start; justify-content:space-between; padding:14px 16px; border-bottom:1px solid rgba(255,255,255,.07);
+  background:#0e1230; color:#fff; cursor:pointer; transition:background .08s; }
+.result-row:last-child{ border-bottom:none; }
+.result-row.is-active{ background:#1a214a; }
+.result-left{ display:flex; align-items:flex-start; gap:12px; min-width:0; flex:1; }
+.result-avatar{ flex-shrink:0; background:rgba(255,217,81,.18) !important; border:1px solid rgba(255,217,81,.4); box-shadow:0 2px 6px rgba(0,0,0,.6);
+  color:#ffd951; font-weight:800; letter-spacing:.05em; }
+.ra-text{ font-size:.8rem; font-weight:700; line-height:1; color:#ffd951; text-shadow:0 0 8px rgba(255,217,81,.6); }
+.result-info{ min-width:0; flex:1; }
+.result-top{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; min-width:0; font-size:.9rem; line-height:1.3; font-weight:600; color:#fff; }
+.person-name{ font-weight:600; color:#fff; }
+.person-sub{ font-size:.8rem; line-height:1.2; opacity:.75; color:#fff; word-break:break-word; }
 
 /* chips */
-.seat-chip{
-  font-weight:700 !important;
-  letter-spacing:.03em;
-}
-.palco-chip{
-  background:rgba(255,217,81,.15) !important;
-  border:1px solid rgba(255,217,81,.4) !important;
-  font-weight:700 !important;
-  color:#ffd951 !important;
-  text-transform:none !important;
-  letter-spacing:.03em !important;
-  line-height:1.1 !important;
-  height:auto !important;
-  padding:2px 6px !important;
-  font-size:.7rem !important;
-  border-radius:8px !important;
-}
+.seat-chip{ font-weight:700 !important; letter-spacing:.03em; }
+.palco-chip{ background:rgba(255,217,81,.15) !important; border:1px solid rgba(255,217,81,.4) !important; font-weight:700 !important; color:#ffd951 !important;
+  text-transform:none !important; letter-spacing:.03em !important; line-height:1.1 !important; height:auto !important; padding:2px 6px !important; font-size:.7rem !important; border-radius:8px !important; }
 
-/* puntito estado */
-.state-dot{
-  width:10px;
-  height:10px;
-  border-radius:999px;
-  flex-shrink:0;
-  margin-left:8px;
-  margin-top:4px;
-}
-.state-dot.is-present{ background:#4caf50; }
-.state-dot.is-assigned{ background:#ffb300; }
-.state-dot.is-free{ background:#9e9e9e; }
+/* estado */
+.state-dot{ width:10px; height:10px; border-radius:999px; flex-shrink:0; margin-left:8px; margin-top:4px; }
+.state-dot.is-present{ background:#4caf50; } .state-dot.is-assigned{ background:#ffb300; } .state-dot.is-free{ background:#9e9e9e; }
 
-/* mensaje sin resultados */
-.nores-row{
-  flex:1 1 auto;
-  display:flex;
-  align-items:flex-start;
-  gap:8px;
-  font-size:.9rem;
-  line-height:1.4;
-  color:#fff;
-  background:#0e1230;
-  padding:16px;
-  justify-content:flex-start;
-}
+/* no results */
+.nores-row{ flex:1 1 auto; display:flex; align-items:flex-start; gap:8px; font-size:.9rem; line-height:1.4; color:#fff; background:#0e1230; padding:16px; }
 .nores-text{ opacity:.8; }
 
-/* ayuda inicial */
-.helpbox{
-  flex:1 1 auto;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  text-align:center;
-  background:radial-gradient(circle at 0% 0%, rgba(255,217,81,.12) 0%, rgba(14,18,48,0) 60%);
-  background-color:#0e1230;
-  padding:20px 16px;
-}
+/* ayuda */
+.helpbox{ flex:1 1 auto; display:flex; align-items:center; justify-content:center; text-align:center;
+  background:radial-gradient(circle at 0% 0%, rgba(255,217,81,.12) 0%, rgba(14,18,48,0) 60%); background-color:#0e1230; padding:20px 16px; }
 .help-inner{ max-width:420px; }
-.help-dynamic{
-  font-size:1rem;
-  line-height:1.35;
-  font-weight:600;
-  color:#fff;
-  margin-bottom:6px;
-}
-.highlight-rot{
-  color:#ffd951;
-  font-weight:800;
-  letter-spacing:.03em;
-  text-shadow:0 0 8px rgba(255,217,81,.6);
-  animation:fadeWord .4s ease;
-}
-@keyframes fadeWord {
-  0%   { opacity:0; transform:translateY(4px) scale(.98); }
-  100% { opacity:1; transform:translateY(0)   scale(1);   }
-}
-.help-desc{
-  font-size:.85rem;
-  line-height:1.4;
-  color:rgba(255,255,255,.75);
-  max-width:360px;
-  margin-inline:auto;
-}
+.help-dynamic{ font-size:1rem; line-height:1.35; font-weight:600; color:#fff; margin-bottom:6px; }
+.highlight-rot{ color:#ffd951; font-weight:800; letter-spacing:.03em; text-shadow:0 0 8px rgba(255,217,81,.6); animation:fadeWord .4s ease; }
+@keyframes fadeWord{ 0%{opacity:0; transform:translateY(4px) scale(.98)} 100%{opacity:1; transform:translateY(0) scale(1)} }
+.help-desc{ font-size:.85rem; line-height:1.4; color:rgba(255,255,255,.75); max-width:360px; margin-inline:auto; }
 
-/* ================= DETALLE PERSONA ================= */
-.person-head{
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-start;
-  flex-wrap:wrap;
-  gap:16px;
-  color:#fff;
-}
-.person-left{
-  display:flex;
-  align-items:flex-start;
-  gap:12px;
-  min-width:0;
-  flex:1;
-}
-.person-avatar{
-  flex-shrink:0;
-  background:rgba(255,217,81,.18) !important;
-  border:1px solid rgba(255,217,81,.4);
-  box-shadow:0 2px 6px rgba(0,0,0,.6);
-  color:#ffd951;
-}
-.pa-text{
-  font-size:13px;
-  font-weight:700;
-  letter-spacing:.5px;
-  line-height:1;
-  color:#ffd951;
-  text-shadow:0 0 8px rgba(255,217,81,.6);
-}
-.person-idtext{
-  min-width:0;
-  word-break:break-word;
-  color:#fff;
-}
-.person-title{
-  font-weight:800;
-  font-size:1.05rem;
-  line-height:1.3;
-  color:#fff;
-}
-.person-sub2{
-  font-size:.9rem;
-  opacity:.75;
-  color:#fff;
-  word-break:break-word;
-}
-.person-right{
-  display:flex;
-  align-items:flex-start;
-}
-.status-chip{
-  font-weight:700;
-  text-transform:uppercase;
-  letter-spacing:.04em;
-  color:#fff;
-  background:rgba(40,167,69,.25);
-  border:1px solid rgba(40,167,69,.6);
-}
+/* CTA bajo buscador */
+.under-search-ctas{ margin-top:16px; }
 
-/* estado YA REGISTRADO / botón registrar */
-.register-row{
-  margin-top:12px;
-  margin-bottom:12px;
-}
+/* ===== DETALLE ===== */
+.person-head{ display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px; color:#fff; }
+.person-left{ display:flex; align-items:flex-start; gap:12px; min-width:0; flex:1; }
+.person-avatar{ flex-shrink:0; background:rgba(255,217,81,.18) !important; border:1px solid rgba(255,217,81,.4); box-shadow:0 2px 6px rgba(0,0,0,.6); color:#ffd951; }
+.pa-text{ font-size:13px; font-weight:700; letter-spacing:.5px; line-height:1; color:#ffd951; text-shadow:0 0 8px rgba(255,217,81,.6); }
+.person-idtext{ min-width:0; word-break:break-word; color:#fff; }
+.person-title{ font-weight:800; font-size:1.05rem; line-height:1.3; color:#fff; }
+.person-sub2{ font-size:.9rem; opacity:.75; color:#fff; word-break:break-word; }
+.person-right{ display:flex; align-items:flex-start; }
+.status-chip{ font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#fff; background:rgba(40,167,69,.25); border:1px solid rgba(40,167,69,.6); }
+
+/* registrar */
+.register-row{ margin-top:12px; margin-bottom:12px; }
 .btn-primary-strong{
-  --btn-bg:#ffd951;
-  --btn-fg:#0b0d28;
-  background:var(--btn-bg) !important;
-  color:var(--btn-fg) !important;
-  font-weight:800 !important;
-  text-transform:none !important;
-  letter-spacing:.04em !important;
-  border-radius:12px !important;
-  width:100%;
-  border:0 !important;
+  --btn-bg:#ffd951; --btn-fg:#0b0d28;
+  background:var(--btn-bg) !important; color:var(--btn-fg) !important; font-weight:800 !important;
+  text-transform:none !important; letter-spacing:.04em !important; border-radius:12px !important; width:100%; border:0 !important;
   box-shadow:0 8px 24px rgba(0,0,0,.8);
 }
-.btn-primary-strong :deep(.v-icon){
-  color:var(--btn-fg) !important;
-  margin-right:8px;
-}
-.btn-primary-strong :deep(.v-btn__overlay){
-  opacity:0 !important;
-}
-.already-chip{
-  width:100%;
-  font-weight:700;
-  justify-content:center;
-  background:rgba(40,167,69,.25) !important;
-  color:#bfffc2 !important;
-  border-radius:12px !important;
-  text-transform:uppercase;
-  letter-spacing:.03em;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}
+.btn-primary-strong :deep(.v-icon){ color:var(--btn-fg) !important; margin-right:8px; }
+.btn-primary-strong :deep(.v-btn__overlay){ opacity:0 !important; }
+.already-chip{ width:100%; font-weight:700; justify-content:center; background:rgba(40,167,69,.25) !important; color:#bfffc2 !important;
+  border-radius:12px !important; text-transform:uppercase; letter-spacing:.03em; display:flex; align-items:center; justify-content:center; }
 
-/* separador interno */
-.sec-divider{
-  opacity:.12;
-  margin:12px 0;
-  border-color:rgba(255,255,255,.15);
-}
+/* separador */
+.sec-divider{ opacity:.12; margin:12px 0; border-color:rgba(255,255,255,.15); }
 
-/* grid info DNI / organismo / etc */
-.info-grid{
-  display:grid;
-  gap:10px 16px;
-  grid-template-columns:repeat(auto-fit, minmax(180px,1fr));
-  color:#fff;
-}
-.info-field{
-  display:flex;
-  align-items:flex-start;
-  gap:6px;
-  min-width:0;
-  font-size:.9rem;
-  line-height:1.3;
-  color:#fff;
-}
-.info-field .lbl{
-  opacity:.7;
-  font-size:.85rem;
-  color:#fff;
-}
-.info-field .val{
-  font-weight:700;
-  color:#fff;
-  word-break:break-word;
-}
-.dim-icon{
-  opacity:.6;
-  color:#fff;
-}
-.palco-inline{
-  font-weight:600;
-  color:#ffd951;
-  margin-left:4px;
-  white-space:nowrap;
-}
+/* info grid */
+.info-grid{ display:grid; gap:10px 16px; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); color:#fff; }
+.info-field{ display:flex; align-items:flex-start; gap:6px; min-width:0; font-size:.9rem; line-height:1.3; color:#fff; }
+.info-field .lbl{ opacity:.7; font-size:.85rem; color:#fff; }
+.info-field .val{ font-weight:700; color:#fff; word-break:break-word; }
+.dim-icon{ opacity:.6; color:#fff; }
+.seat-palco-wrap{ display:inline-flex; align-items:center; flex-wrap:nowrap; gap:6px; line-height:1.3; }
+.seat-code{ font-weight:700; color:#fff; }
+.palco-inline{ font-weight:600; color:#ffd951; white-space:nowrap; line-height:1.3; }
 
-/* ACCIONES */
-.actions-col{
-  margin-top:16px;
-  display:grid;
-  grid-template-columns:1fr;
-  gap:10px;
-  color:#fff;
-}
+/* acciones */
+.actions-col{ margin-top:16px; display:grid; grid-template-columns:1fr; gap:10px; color:#fff; }
 .action-btn{
-  background:rgba(255,255,255,.05) !important;
-  border:1px solid rgba(255,255,255,.18) !important;
-  color:#fff !important;
-  font-weight:700 !important;
-  border-radius:10px !important;
-  text-transform:none !important;
-  box-shadow:0 2px 6px rgba(0,0,0,.6) !important;
+  background:rgba(255,255,255,.05) !important; border:1px solid rgba(255,255,255,.18) !important; color:#fff !important;
+  font-weight:700 !important; border-radius:10px !important; text-transform:none !important; box-shadow:0 2px 6px rgba(0,0,0,.6) !important;
   justify-content:flex-start !important;
 }
-.action-warn{
-  background:rgba(255,193,7,.15) !important;
-  border-color:rgba(255,193,7,.4) !important;
-  color:#fff !important;
-}
-.action-free{
-  background:rgba(0,0,0,.4) !important;
-  border-color:rgba(255,255,255,.2) !important;
-}
-.action-error{
-  background:rgba(220,53,69,.18) !important;
-  border-color:rgba(220,53,69,.5) !important;
-  color:#fff !important;
-}
-.action-reset{
-  color:#ffd951 !important;
-  justify-content:flex-start !important;
-  text-transform:none !important;
-  font-weight:600 !important;
-  padding-left:0 !important;
-}
+.action-warn{ background:rgba(255,193,7,.15) !important; border-color:rgba(255,193,7,.4) !important; color:#fff !important; }
+.action-free{ background:rgba(0,0,0,.4) !important; border-color:rgba(255,255,255,.2) !important; }
+.action-error{ background:rgba(220,53,69,.18) !important; border-color:rgba(220,53,69,.5) !important; color:#fff !important; }
+.action-create{ background:rgba(76,175,80,.18) !important; border-color:rgba(76,175,80,.5) !important; }
 
-/* TOAST */
-.snackbar-strong {
-  font-weight:600;
-  letter-spacing:.02em;
-  text-transform:none;
-  max-width:360px;
-  border-radius:12px !important;
-  box-shadow:0 20px 40px rgba(0,0,0,.6);
-  color:#fff;
-}
+/* botón buscar afuera */
+.below-reset{ display:flex; justify-content:flex-start; padding:0 20px 20px; }
+.below-reset-btn{ color:#ffd951 !important; text-transform:none !important; font-weight:600 !important; padding-left:0 !important; }
 
-/* MODAL liberar asiento */
-.modal-card{
-  background:#0e1230 !important;
-  color:#eaf0ff !important;
-  border:1px solid rgba(255,217,81,.4);
-}
-.modal-title{
-  color:#ffd951;
-  font-weight:700;
-  display:flex;
-  align-items:center;
-}
+/* TOAST & MODAL */
+.snackbar-strong{ font-weight:600; letter-spacing:.02em; text-transform:none; max-width:360px; border-radius:12px !important;
+  box-shadow:0 20px 40px rgba(0,0,0,.6); color:#fff; }
+.modal-card{ background:#0e1230 !important; color:#eaf0ff !important; border:1px solid rgba(255,217,81,.4); }
+.modal-title{ color:#ffd951; font-weight:700; display:flex; align-items:center; }
 
-/* RESPONSIVE */
+/* responsive */
 @media(max-width:600px){
-  .ck-headbar{
-    flex-direction:row;
-    align-items:flex-start;
-  }
-  .ck-head-title{
-    font-size:1rem;
-  }
-
-  .person-head{
-    flex-direction:column;
-    align-items:flex-start;
-  }
-  .person-right{
-    order:2;
-  }
-
-  .btn-primary-strong{
-    font-size:1rem !important;
-  }
-}
-
-/* asiento inline dentro de info */
-.seat-palco-wrap{
-  display:inline-flex;
-  align-items:center;
-  flex-wrap:nowrap;
-  gap:6px;
-  line-height:1.3;
-}
-.seat-code{
-  font-weight:700;
-  color:#fff;
-}
-.palco-inline{
-  font-weight:600;
-  color:#ffd951;
-  white-space:nowrap;
-  line-height:1.3;
+  .ck-headbar{ flex-direction:row; align-items:flex-start; }
+  .ck-head-title{ font-size:1rem; }
+  .person-head{ flex-direction:column; align-items:flex-start; }
+  .person-right{ order:2; }
+  .btn-primary-strong{ font-size:1rem !important; }
 }
 </style>
