@@ -23,6 +23,7 @@
       <template v-else>
         <!-- DESKTOP / TABLET ANCHA -->
         <template v-if="!smAndDown">
+          <!-- viewport con scroll si no entra todo -->
           <div class="palcos-viewport">
             <div class="palcos-layout">
               <!-- PALCO A -->
@@ -121,7 +122,7 @@
           </div>
         </template>
 
-        <!-- MOBILE -->
+        <!-- MOBILE (tabs) -->
         <template v-else>
           <div class="palcos-tabs-wrap">
             <v-tabs
@@ -138,6 +139,7 @@
             </v-tabs>
 
             <v-window v-model="activeTab" class="palcos-window" :touch="false">
+              <!-- TAB A -->
               <v-window-item value="A" class="palco-window-item">
                 <section class="palco-block palco-lateral">
                   <header class="palco-header">
@@ -170,6 +172,7 @@
                 </section>
               </v-window-item>
 
+              <!-- TAB PRINCIPAL -->
               <v-window-item value="P" class="palco-window-item">
                 <section class="palco-block palco-principal">
                   <header class="palco-header">
@@ -202,6 +205,7 @@
                 </section>
               </v-window-item>
 
+              <!-- TAB B -->
               <v-window-item value="B" class="palco-window-item">
                 <section class="palco-block palco-lateral">
                   <header class="palco-header">
@@ -275,13 +279,14 @@
           class="search-input"
         />
 
+        <!-- Botón ícono sutil: Exportar PDF (descarga directa) -->
         <v-btn
           variant="tonal"
           size="small"
           icon="mdi-file-pdf-box"
           class="btn-tonal btn-icon"
-          @click="exportPDF"
           :title="'Exportar PDF'"
+          @click="exportPDF"
         />
       </div>
     </v-card-title>
@@ -298,6 +303,7 @@
         :mobile-breakpoint="0"
         density="comfortable"
       >
+        <!-- oculta footer de paginación -->
         <template #bottom></template>
 
         <template #item.name="{ item }">
@@ -385,9 +391,13 @@ import { useDisplay } from 'vuetify'
 import { useSeatsStore } from '../stores'
 import api from '../services/api'
 
+/* ===== Breakpoint ===== */
 const { smAndDown } = useDisplay()
+
+/* ===== Store ===== */
 const store = useSeatsStore()
 
+/* ===== Palcos ===== */
 const palcoMap = ref({
   1: { id: 1, name: 'PALCO PRINCIPAL', rows: [] },
   2: { id: 2, name: 'PALCO A', rows: [] },
@@ -395,10 +405,12 @@ const palcoMap = ref({
 })
 
 const globalLoading = ref(true)
-const activeTab = ref('P')
-const activePalcoTab = ref('1')
 
-function transformSeatsResponse(data){
+/* Tabs */
+const activeTab = ref('P')     // A | P | B
+const activePalcoTab = ref('1')// 1 | 2 | 3
+
+function transformSeatsResponse (data) {
   const rowsOut = data.seats.map(arr => {
     const letter = arr[0]?.charAt(0) || '?'
     return { letter, codes: arr }
@@ -406,13 +418,14 @@ function transformSeatsResponse(data){
   return { id: data.palcoId, name: data.name, rows: rowsOut }
 }
 
-async function loadPalco(palcoId){
+async function loadPalco (palcoId) {
   const { data } = await api.get(`/palcos/${palcoId}/seats`)
   palcoMap.value[palcoId] = transformSeatsResponse(data)
 }
 
+/* seat → palcoId */
 const seatToPalcoId = ref({})
-function rebuildSeatToPalco(){
+function rebuildSeatToPalco () {
   const map = {}
   Object.keys(palcoMap.value).forEach(pid => {
     const palco = palcoMap.value[Number(pid)]
@@ -421,56 +434,72 @@ function rebuildSeatToPalco(){
   seatToPalcoId.value = map
 }
 
-onMounted(async ()=>{
-  await Promise.all([ loadPalco(1), loadPalco(2), loadPalco(3), store.ensureLoaded() ])
+/* Load inicial */
+onMounted(async () => {
+  await Promise.all([loadPalco(1), loadPalco(2), loadPalco(3), store.ensureLoaded()])
   rebuildSeatToPalco()
   globalLoading.value = false
 })
 
-const palcoPrincipalRows = computed(()=>palcoMap.value[1]?.rows||[])
-const palcoArows = computed(()=>palcoMap.value[2]?.rows||[])
-const palcoBrows = computed(()=>palcoMap.value[3]?.rows||[])
+/* Computed */
+const palcoPrincipalRows = computed(() => palcoMap.value[1]?.rows || [])
+const palcoArows          = computed(() => palcoMap.value[2]?.rows || [])
+const palcoBrows          = computed(() => palcoMap.value[3]?.rows || [])
 
-const palcoPrincipalMeta = computed(()=>({ id:palcoMap.value[1]?.id, name:palcoMap.value[1]?.name }))
-const palcoAmeta = computed(()=>({ id:palcoMap.value[2]?.id, name:palcoMap.value[2]?.name }))
-const palcoBmeta = computed(()=>({ id:palcoMap.value[3]?.id, name:palcoMap.value[3]?.name }))
+const palcoPrincipalMeta  = computed(() => ({ id: palcoMap.value[1]?.id, name: palcoMap.value[1]?.name }))
+const palcoAmeta          = computed(() => ({ id: palcoMap.value[2]?.id, name: palcoMap.value[2]?.name }))
+const palcoBmeta          = computed(() => ({ id: palcoMap.value[3]?.id, name: palcoMap.value[3]?.name }))
 
-function seatStatusClass(code){ return store.seatStatus?.(code) || 'free' }
+/* Estado visual por asiento */
+function seatStatusClass (code) {
+  return store.seatStatus?.(code) || 'free'
+}
 
+/* Modal detalle asiento */
 const dialog = ref(false)
 const currentSeat = ref(null)
-const holder = computed(()=> currentSeat.value ? store.seatHolder(currentSeat.value) : null)
-const currentStatus = computed(()=> currentSeat.value ? (store.seatStatus(currentSeat.value) || 'free') : 'free')
-function openSeat(code){ currentSeat.value = code; dialog.value = true }
+const holder = computed(() => currentSeat.value ? store.seatHolder(currentSeat.value) : null)
+const currentStatus = computed(() => currentSeat.value ? (store.seatStatus(currentSeat.value) || 'free') : 'free')
+function openSeat (code) { currentSeat.value = code; dialog.value = true }
 
+/* Sincronización de tabs (mapa ↔ tabla) */
 const tabToPalcoId = { A: '2', P: '1', B: '3' }
-const palcoIdToTab = { '1':'P', '2':'A', '3':'B' }
-watch(activeTab, val => { const id = tabToPalcoId[val] || '1'; if (activePalcoTab.value !== id) activePalcoTab.value = id })
-watch(activePalcoTab, val => { const t = palcoIdToTab[val] || 'P'; if (activeTab.value !== t) activeTab.value = t })
+const palcoIdToTab = { '1': 'P', '2': 'A', '3': 'B' }
 
+watch(activeTab, val => {
+  const id = tabToPalcoId[val] || '1'
+  if (activePalcoTab.value !== id) activePalcoTab.value = id
+})
+watch(activePalcoTab, val => {
+  const t = palcoIdToTab[val] || 'P'
+  if (activeTab.value !== t) activeTab.value = t
+})
+
+/* ===== Tabla de presentes ===== */
 const headers = [
-  { title:'Asiento', key:'seat', sortable:true },
-  { title:'Nombre', key:'name', sortable:true },
-  { title:'DNI', key:'doc', sortable:true },
-  { title:'Organismo', key:'org', sortable:true },
-  { title:'Ingreso', key:'presentAt', sortable:true },
+  { title: 'Asiento',   key: 'seat',      sortable: true },
+  { title: 'Nombre',    key: 'name',      sortable: true },
+  { title: 'DNI',       key: 'doc',       sortable: true },
+  { title: 'Organismo', key: 'org',       sortable: true },
+  { title: 'Ingreso',   key: 'presentAt', sortable: true },
 ]
 
-const presentRowsByPalco = computed(()=>{
-  const acc = { 1:[], 2:[], 3:[] }
+const presentRowsByPalco = computed(() => {
+  const acc = { 1: [], 2: [], 3: [] }
   store.people.forEach(p => {
     if (!p.present) return
     const pid = seatToPalcoId.value[p.seat]
     if (!pid) return
-    acc[pid].push({ name:p.name, seat:p.seat, org:p.org, doc:p.doc, presentAt:p.presentAt })
+    acc[pid].push({ name: p.name, seat: p.seat, org: p.org, doc: p.doc, presentAt: p.presentAt })
   })
-  Object.keys(acc).forEach(pid => acc[pid].sort((a,b)=>(a.presentAt||'').localeCompare(b.presentAt||'')))
+  Object.keys(acc).forEach(pid => acc[pid].sort((a, b) => (a.presentAt || '').localeCompare(b.presentAt || '')))
   return acc
 })
-const visibleRows = computed(()=> presentRowsByPalco.value[Number(activePalcoTab.value)] || [])
+
+const visibleRows = computed(() => presentRowsByPalco.value[Number(activePalcoTab.value)] || [])
 
 const q = ref('')
-const filteredRows = computed(()=>{
+const filteredRows = computed(() => {
   const needle = q.value.trim().toLowerCase()
   if (!needle) return visibleRows.value
   return visibleRows.value.filter(r =>
@@ -478,112 +507,285 @@ const filteredRows = computed(()=>{
   )
 })
 
+/* Tabla responsive */
 const { smAndDown: smForTable } = useDisplay()
-const tableHeight = computed(()=> smForTable.value ? 340 : 420)
-const itemsPerPage = computed(()=> smForTable.value ? 10 : 25)
+const tableHeight  = computed(() => (smForTable.value ? 340 : 420))
+const itemsPerPage = computed(() => (smForTable.value ? 10  : 25))
 
-const initials = (name='') => String(name).trim().split(/\s+/).slice(0,2).map(s => s[0]?.toUpperCase()||'').join('')
+/* Utils */
+const initials = (name = '') => String(name).trim().split(/\s+/).slice(0, 2).map(s => s[0]?.toUpperCase() || '').join('')
 
-function formatDateTime(iso, compact=false){
+function formatDateTime (iso, compact = false) {
   if (!iso) return '—'
-  try{
+  try {
     const dt = new Date(iso)
-    if (compact){
-      return new Intl.DateTimeFormat('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(dt).replace(',','')
+    if (compact) {
+      return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(dt).replace(',', '')
     }
-    return new Intl.DateTimeFormat('es-AR',{dateStyle:'medium',timeStyle:'short',hour12:false}).format(dt).replace(',','')
-  }catch{ return iso }
+    return new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeStyle: 'short', hour12: false }).format(dt).replace(',', '')
+  } catch { return iso }
 }
 
-function exportPDF(){
+/* ===== Export: descarga directa sin imprimir ===== */
+function exportPDF () {
   const rows = filteredRows.value
-  if (!rows.length){ alert('No hay datos para exportar.'); return }
+  if (!rows.length) { alert('No hay datos para exportar.'); return }
+
   const palcoName =
-    activePalcoTab.value==='1' ? (palcoPrincipalMeta.value.name||'Principal') :
-    activePalcoTab.value==='2' ? (palcoAmeta.value.name||'Palco A') :
-                                  (palcoBmeta.value.name||'Palco B')
+    activePalcoTab.value === '1' ? (palcoPrincipalMeta.value.name || 'Principal')
+      : activePalcoTab.value === '2' ? (palcoAmeta.value.name || 'Palco A')
+      : (palcoBmeta.value.name || 'Palco B')
 
   const htmlRows = rows.map(r => (
     '<tr>' +
-      '<td>'+ (r.seat||'') +'</td>' +
-      '<td>'+ String(r.name||'').replace(/</g,'&lt;') +'</td>' +
-      '<td>'+ (r.doc||'') +'</td>' +
-      '<td>'+ String(r.org||'').replace(/</g,'&lt;') +'</td>' +
-      '<td>'+ formatDateTime(r.presentAt) +'</td>' +
+      '<td>' + (r.seat || '') + '</td>' +
+      '<td>' + String(r.name || '').replace(/</g, '&lt;') + '</td>' +
+      '<td>' + (r.doc || '') + '</td>' +
+      '<td>' + String(r.org || '').replace(/</g, '&lt;') + '</td>' +
+      '<td>' + formatDateTime(r.presentAt) + '</td>' +
     '</tr>'
   )).join('')
 
-  const htmlHead = '<html><head><meta charset="utf-8"/><title>Presentes - '+palcoName+'</title>'+
-  '<style>@page{size:A4;margin:14mm;}body{font-family:Arial,Helvetica,sans-serif;color:#0b0d28;}h1{font-size:18px;margin:0 0 6px 0;}h2{font-size:12px;margin:0 0 10px 0;color:#333;}table{width:100%;border-collapse:collapse;font-size:11px;}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left;}th{background:#0b0d28;color:#ffd951;}tr:nth-child(odd) td{background:#fafafa;}.muted{color:#666;}</style></head>'
+  const html =
+    '<!doctype html><html><head><meta charset="utf-8"/>' +
+    '<title>Presentes - ' + palcoName + '</title>' +
+    '<style>@page{size:A4;margin:14mm;}body{font-family:Arial,Helvetica,sans-serif;color:#0b0d28;}h1{font-size:18px;margin:0 0 6px 0;}h2{font-size:12px;margin:0 0 10px 0;color:#333;}table{width:100%;border-collapse:collapse;font-size:11px;}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left;}th{background:#0b0d28;color:#ffd951;}tr:nth-child(odd) td{background:#fafafa;}.muted{color:#666;}</style>' +
+    '</head><body>' +
+    '<h1>Presentes en Palco</h1>' +
+    '<h2 class="muted">Palco: ' + palcoName + ' · Generado: ' + new Date().toLocaleString('es-AR') + '</h2>' +
+    '<table><thead><tr><th>Asiento</th><th>Nombre</th><th>DNI</th><th>Organismo</th><th>Ingreso</th></tr></thead><tbody>' +
+    htmlRows +
+    '</tbody></table>' +
+    '</body></html>'
 
-  const htmlBodyOpen = '<body onload="window.print(); setTimeout(function(){ window.close(); }, 300)">'
-  const htmlBodyContent = '<h1>Presentes en Palco</h1>'+
-    '<h2 class="muted">Palco: '+palcoName+' · Generado: '+ new Date().toLocaleString('es-AR') +'</h2>'+
-    '<table><thead><tr><th>Asiento</th><th>Nombre</th><th>DNI</th><th>Organismo</th><th>Ingreso</th></tr></thead>'+
-    '<tbody>'+ htmlRows +'</tbody></table>'
-  const htmlClose = '</body></html>'
-
-  const html = htmlHead + htmlBodyOpen + htmlBodyContent + htmlClose
-
-  const win = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700')
-  if (win){ win.document.open(); win.document.write(html); win.document.close(); }
-  else{
-    const blob = new Blob([html], { type:'text/html;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'presentes-'+palcoName+'.html'
-    document.body.appendChild(a); a.click(); a.remove()
-    URL.revokeObjectURL(url)
-  }
+  // Descarga directa (HTML). Si querés .pdf forzado, te lo ajusto.
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'presentes-' + palcoName + '.html'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }
 </script>
 
 <style scoped>
-.card-contrast{background:#0e1230!important;border:1px solid rgba(255,217,81,.14);box-shadow:0 6px 18px rgba(0,0,0,.25)}
-.title-contrast{background:linear-gradient(180deg,rgba(255,217,81,.06),rgba(11,13,40,0));border-bottom:1px solid rgba(255,217,81,.10)}
-.divider-contrast{border-color:rgba(255,217,81,.10)!important}.text-dim{color:rgba(234,240,255,.75)}
-.btn-tonal{background:rgba(255,217,81,.12)!important;color:#ffd951!important;border:1px solid rgba(255,217,81,.24)!important}
-.btn-icon{width:34px!important;height:34px!important;min-width:34px!important;border-radius:10px!important;padding:0!important;display:flex;align-items:center;justify-content:center}
-.btn-icon :deep(.v-icon){font-size:20px!important}
-.chip-strong{font-weight:700;color:#0b0d28!important}
-.chip-outline{color:#eaf0ff!important;border-color:rgba(234,240,255,.28)!important;background:rgba(234,240,255,.07)!important;box-shadow:0 4px 12px rgba(0,0,0,.6);font-weight:600;height:22px;line-height:1;border-radius:6px;padding:0 8px;font-size:12px;display:inline-flex}
-.chip-count{font-weight:800;color:#eaf0ff!important;background:#1b5e20!important}
-.tabs-compact{overflow-x:auto}
-.tab-compact{text-transform:none!important;font-weight:700!important;font-size:.78rem!important;letter-spacing:.02em!important;min-width:92px!important;padding:0 10px!important;height:34px!important}
-:deep(.v-tab.v-tab--selected){background:rgba(255,217,81,.18)!important;box-shadow:inset 0 0 6px rgba(255,217,81,.25);color:#fff3bf!important;opacity:1!important;font-weight:800!important}
-.palcos-viewport{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
-.palcos-layout{display:grid;grid-template-columns:1fr 2fr 1fr;gap:24px;width:100%;max-width:100%}
-@media(min-width:1440px){.palcos-layout{grid-template-columns:1.1fr 2fr 1.1fr;gap:32px}}
-@media(max-width:1100px){.palcos-layout{grid-template-columns:1fr 1.6fr 1fr;gap:20px}}
-@media(max-width:900px){.palcos-layout{grid-template-columns:1fr;gap:16px}}
-.palco-block{background:rgba(11,13,40,.5);border:1px solid rgba(255,217,81,.14);border-radius:16px;box-shadow:0 12px 32px rgba(0,0,0,.6);display:flex;flex-direction:column;min-width:0}
-.palco-header{padding:12px 16px;background:#1a1d38;border-bottom:1px solid rgba(255,217,81,.18);border-top-left-radius:16px;border-top-right-radius:16px;color:#ffd951;font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.03em;display:flex;align-items:center;justify-content:space-between}
-.palco-header-inner{display:flex;align-items:center;font-weight:600;color:#ffd951}.palco-title{line-height:1.2}
-.palco-body{padding:16px;overflow-x:auto}.main-palco-body{padding:0 16px 16px;background:#0f122a}
-.palco-footer{font-size:.7rem;line-height:1.2;color:rgba(234,240,255,.55);border-top:1px solid rgba(255,217,81,.08);padding:8px 16px 12px;text-align:center;text-transform:uppercase;letter-spacing:.05em}
-.palcos-tabs-wrap{display:flex;flex-direction:column;gap:12px}.palcos-tabs{background:rgba(11,13,40,.6);border:1px solid rgba(255,217,81,.24);border-radius:12px;box-shadow:0 10px 24px rgba(0,0,0,.7);overflow:hidden}.palcos-window{background:transparent}
-.grid-rows-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}
-.grid-rows{display:flex;flex-direction:column-reverse;gap:12px;min-width:max(480px,100%)}
-.row{display:grid;grid-auto-flow:column;grid-template-columns:38px repeat(auto-fit,minmax(54px,1fr));gap:6px;align-items:center}
-.row-label{position:sticky;left:0;z-index:1;text-align:center;font-weight:800;color:#0b0d28;background:#ffd951;border:1px solid rgba(255,217,81,.45);box-shadow:0 2px 6px rgba(0,0,0,.25);border-radius:8px;padding:5px 0;width:38px;font-size:.75rem;line-height:1.2}
-.seat{min-width:54px;height:32px;border-radius:16px;font-weight:700;text-transform:none;box-shadow:0 1px 2px rgba(0,0,0,.25);background:#f3f5f9!important;color:#0b0d28!important;border:0!important;font-size:.75rem;line-height:1.2;justify-content:center;padding:0 8px}
-.seat.present{background:#4caf50!important;color:#fff!important}.seat.assigned{background:#ffb300!important;color:#0b0d28!important}
-.legend{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
-.legend :deep(.chip-strong){font-weight:700;border:1px solid rgba(255,217,81,.24)!important;box-shadow:0 4px 12px rgba(0,0,0,.6);height:22px;line-height:1;border-radius:6px;padding:0 8px;font-size:12px;display:inline-flex}
-.legend :deep(.chip-presente){background-color:#4caf50!important;color:#0b0d28!important}
-.legend :deep(.chip-asignado){background-color:#ffb300!important;color:#0b0d28!important}
-.table-wrap{width:100%;overflow-x:auto}
-.present-table :deep(thead th){position:sticky;top:0;z-index:2;background:#0e1230!important;color:#eaf0ff!important;border-bottom:1px solid rgba(255,217,81,.14)!important}
-.present-table :deep(tbody tr:nth-child(odd)){background:rgba(255,217,81,.03)}
-.present-table :deep(td){border-bottom:1px solid rgba(255,217,81,.06)!important}
-.chip-table{box-shadow:0 0 0 1px rgba(255,217,81,.18) inset}.font-mono{font-variant-numeric:tabular-nums}
-.btn-text{color:#ffd951!important}.alert-contrast{background:rgba(255,217,81,.07)!important;border-color:rgba(255,217,81,.18)!important;color:#ffd951!important}
-@media(max-width:600px){.legend :deep(.v-chip){height:20px;font-size:11px}.grid-rows{gap:10px;min-width:max(400px,100%)}.row{grid-template-columns:32px repeat(auto-fit,minmax(50px,1fr));gap:6px}.row-label{width:32px;padding:4px 0;font-size:.7rem}.seat{min-width:50px;height:30px;border-radius:14px;font-size:.7rem;padding:0 6px}}
-.palco-lateral .grid-rows{min-width:max(560px,100%)!important}
-.palco-lateral .palco-body,.palco-lateral .grid-rows-wrap{overflow-x:auto!important;overflow-y:hidden!important;-webkit-overflow-scrolling:touch;padding-bottom:6px}
-@media(max-width:1500px) and (min-width:901px){.palcos-layout{grid-template-columns:1fr 1.5fr 1fr;gap:14px}.palco-body{padding:10px;overflow-x:hidden!important;overflow-y:hidden!important}.main-palco-body{padding:0 10px 10px}.grid-rows{gap:4px;min-width:100%!important}.row{grid-template-columns:22px repeat(auto-fit,minmax(32px,1fr));gap:2px}.row-label{width:22px;padding:2px 0;border-radius:5px;font-size:.6rem;line-height:1.05;font-weight:700}.seat{min-width:32px;height:18px;border-radius:9px;font-size:.58rem;line-height:1.05;padding:0 2px;font-weight:700}.palco-lateral .palco-body,.palco-lateral .grid-rows-wrap,.palco-principal .palco-body,.palco-principal .grid-rows-wrap{overflow-x:auto!important}}
-@media(max-width:1200px) and (min-width:901px){.palcos-layout{grid-template-columns:1fr 1.4fr 1fr;gap:10px}.palco-body{padding:8px}.main-palco-body{padding:0 8px 8px}.grid-rows{gap:3px}.row{grid-template-columns:20px repeat(auto-fit,minmax(30px,1fr));gap:2px}.row-label{width:20px;padding:2px 0;font-size:.55rem;line-height:1.05;border-radius:4px}.seat{min-width:30px;height:16px;border-radius:8px;font-size:.5rem;line-height:1.05;padding:0 2px}.palco-lateral .palco-body,.palco-lateral .grid-rows-wrap,.palco-principal .palco-body,.palco-principal .grid-rows-wrap{overflow-x:auto!important}}
-@media(min-width:901px){.palcos-layout{min-width:1560px}.palco-body,.grid-rows-wrap{overflow-x:visible!important}}
-@media(max-width:900px){.palcos-window .palco-body,.palcos-window .grid-rows-wrap{overflow-x:auto!important;overflow-y:hidden!important;-webkit-overflow-scrolling:touch}.palcos-window .grid-rows{min-width:max(480px,100%)!important}.palcos-window .palco-lateral .palco-body,.palcos-window .palco-lateral .grid-rows-wrap,.palcos-window .palco-principal .palco-body,.palcos-window .palco-principal .grid-rows-wrap{overflow-x:auto!important;overflow-y:hidden!important}.nowrap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+/* ===== Card / fondo oscuro dorado ===== */
+.card-contrast {
+  background: #0e1230 !important;
+  border: 1px solid rgba(255, 217, 81, .14);
+  box-shadow: 0 6px 18px rgba(0,0,0,.25);
+}
+.title-contrast {
+  background: linear-gradient(180deg, rgba(255,217,81,.06), rgba(11,13,40,0));
+  border-bottom: 1px solid rgba(255,217,81,.10);
+}
+.divider-contrast { border-color: rgba(255,217,81,.10) !important; }
+.text-dim { color: rgba(234,240,255, .75); }
+
+/* Botón EXPORTAR (ícono sutil) */
+.btn-tonal {
+  background: rgba(255,217,81,.12) !important;
+  color: #ffd951 !important;
+  border: 1px solid rgba(255,217,81,.24) !important;
+}
+.btn-icon{
+  width:34px !important; height:34px !important; min-width:34px !important;
+  border-radius:10px !important; padding:0 !important;
+  display:flex; align-items:center; justify-content:center;
+}
+.btn-icon :deep(.v-icon){ font-size:20px !important; }
+
+/* Chips */
+.chip-strong { font-weight: 700; color: #0b0d28 !important; }
+.chip-outline {
+  color: #eaf0ff !important; border-color: rgba(234,240,255,.28) !important;
+  background: rgba(234,240,255,.07) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,.6);
+  font-weight: 600; height: 22px; line-height: 1;
+  border-radius: 6px; padding: 0 8px; font-size: 12px; display: inline-flex;
+}
+.chip-count { font-weight: 800; color: #eaf0ff !important; background: #1b5e20 !important; }
+
+/* Tabs compactos (mismo tamaño arriba y tabla) */
+.tabs-compact{ overflow-x:auto; }
+.tab-compact{
+  text-transform:none !important; font-weight:700 !important;
+  font-size:.78rem !important; letter-spacing:.02em !important;
+  min-width:92px !important; padding:0 10px !important; height:34px !important;
+}
+:deep(.v-tab.v-tab--selected){
+  background: rgba(255,217,81,.18) !important;
+  box-shadow: inset 0 0 6px rgba(255,217,81,.25);
+  color:#fff3bf !important; opacity:1 !important; font-weight:800 !important;
+}
+
+/* ===== LAYOUT 3 PALCOS ===== */
+.palcos-viewport{
+  overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;
+}
+.palcos-layout{
+  display:grid; grid-template-columns:1fr 2fr 1fr; gap:24px; width:100%; max-width:100%;
+}
+@media (min-width:1440px){
+  .palcos-layout{ grid-template-columns:1.1fr 2fr 1.1fr; gap:32px; }
+}
+@media (max-width:1100px){
+  .palcos-layout{ grid-template-columns:1fr 1.6fr 1fr; gap:20px; }
+}
+@media (max-width:900px){
+  .palcos-layout{ grid-template-columns:1fr; gap:16px; }
+}
+
+/* Bloques */
+.palco-block{
+  background: rgba(11,13,40,.5);
+  border: 1px solid rgba(255,217,81,.14);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.6);
+  display: flex; flex-direction: column; min-width: 0;
+}
+.palco-header{
+  padding: 12px 16px; background:#1a1d38; border-bottom:1px solid rgba(255,217,81,.18);
+  border-top-left-radius: 16px; border-top-right-radius: 16px; color:#ffd951;
+  font-size:.8rem; font-weight:600; text-transform:uppercase; letter-spacing:.03em;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.palco-header-inner{ display:flex; align-items:center; font-weight:600; color:#ffd951; }
+.palco-title{ line-height:1.2; }
+.palco-body{ padding:16px; overflow-x:auto; }
+.main-palco-body{ padding:0 16px 16px; background:#0f122a; }
+.palco-footer{
+  font-size:.7rem; line-height:1.2; color:rgba(234,240,255,.55);
+  border-top:1px solid rgba(255,217,81,.08); padding:8px 16px 12px;
+  text-align:center; text-transform:uppercase; letter-spacing:.05em;
+}
+
+/* ===== GRID FILAS + ASIENTOS ===== */
+.grid-rows-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:6px; }
+.grid-rows{ display:flex; flex-direction:column-reverse; gap:12px; min-width:max(480px,100%); }
+.row{
+  display:grid; grid-auto-flow:column;
+  grid-template-columns:38px repeat(auto-fit, minmax(54px, 1fr));
+  gap:6px; align-items:center;
+}
+.row-label{
+  position:sticky; left:0; z-index:1; text-align:center; font-weight:800; color:#0b0d28;
+  background:#ffd951; border:1px solid rgba(255,217,81,.45);
+  box-shadow:0 2px 6px rgba(0,0,0,.25); border-radius:8px; padding:5px 0;
+  width:38px; font-size:.75rem; line-height:1.2;
+}
+.seat{
+  min-width:54px; height:32px; border-radius:16px; font-weight:700; text-transform:none;
+  box-shadow:0 1px 2px rgba(0,0,0,.25); background:#f3f5f9 !important; color:#0b0d28 !important;
+  border:0 !important; font-size:.75rem; line-height:1.2; justify-content:center; padding:0 8px;
+}
+.seat.present{ background:#4caf50 !important; color:#fff !important; }
+.seat.assigned{ background:#ffb300 !important; color:#0b0d28 !important; }
+
+/* Leyenda */
+.legend{ display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
+.legend :deep(.chip-strong){
+  font-weight:700; border:1px solid rgba(255,217,81,.24) !important;
+  box-shadow:0 4px 12px rgba(0,0,0,.6); height:22px; line-height:1;
+  border-radius:6px; padding:0 8px; font-size:12px; display:inline-flex;
+}
+.legend :deep(.chip-presente){ background-color:#4caf50 !important; color:#0b0d28 !important; }
+.legend :deep(.chip-asignado){ background-color:#ffb300 !important; color:#0b0d28 !important; }
+
+/* ===== TABLA ===== */
+.table-wrap{ width:100%; overflow-x:auto; }
+.present-table :deep(thead th){
+  position: sticky; top: 0; z-index: 2;
+  background:#0e1230 !important; color:#eaf0ff !important;
+  border-bottom: 1px solid rgba(255,217,81,.14) !important;
+}
+.present-table :deep(tbody tr:nth-child(odd)){ background: rgba(255,217,81,.03); }
+.present-table :deep(td){ border-bottom: 1px solid rgba(255,217,81,.06) !important; }
+.chip-table{ box-shadow: 0 0 0 1px rgba(255,217,81,.18) inset; }
+.font-mono{ font-variant-numeric: tabular-nums; }
+
+.btn-text{ color:#ffd951 !important; }
+.alert-contrast{
+  background: rgba(255,217,81,.07) !important;
+  border-color: rgba(255,217,81,.18) !important;
+  color: #ffd951 !important;
+}
+
+/* ===== RESPONSIVE FINO ===== */
+@media (max-width:600px){
+  .legend :deep(.v-chip){ height:20px; font-size:11px; }
+  .grid-rows{ gap:10px; min-width:max(400px,100%); }
+  .row{ grid-template-columns:32px repeat(auto-fit, minmax(50px,1fr)); gap:6px; }
+  .row-label{ width:32px; padding:4px 0; font-size:.7rem; }
+  .seat{ min-width:50px; height:30px; border-radius:14px; font-size:.7rem; padding:0 6px; }
+}
+
+/* Laterales: ancho mínimo + scroll en desktop si no entra */
+.palco-lateral .grid-rows{ min-width:max(560px, 100%) !important; }
+.palco-lateral .palco-body,
+.palco-lateral .grid-rows-wrap{
+  overflow-x:auto !important; overflow-y:hidden !important; -webkit-overflow-scrolling:touch;
+  padding-bottom:6px;
+}
+
+/* Rango notebook/tablet horizontal (1366…) */
+@media (max-width:1500px) and (min-width:901px){
+  .palcos-layout{ grid-template-columns:1fr 1.5fr 1fr; gap:14px; }
+
+  .palco-body{ padding:10px; overflow-x:hidden !important; overflow-y:hidden !important; }
+  .main-palco-body{ padding:0 10px 10px; }
+
+  .grid-rows{ gap:4px; min-width:100% !important; }
+  .row{ grid-template-columns:22px repeat(auto-fit, minmax(32px,1fr)); gap:2px; }
+  .row-label{ width:22px; padding:2px 0; border-radius:5px; font-size:.6rem; line-height:1.05; font-weight:700; }
+  .seat{ min-width:32px; height:18px; border-radius:9px; font-size:.58rem; line-height:1.05; padding:0 2px; font-weight:700; }
+
+  /* permitir scroll si aún no entra */
+  .palco-lateral .palco-body,
+  .palco-lateral .grid-rows-wrap,
+  .palco-principal .palco-body,
+  .palco-principal .grid-rows-wrap{ overflow-x:auto !important; }
+}
+
+/* Aún más chico (<=1200px) */
+@media (max-width:1200px) and (min-width:901px){
+  .palcos-layout{ grid-template-columns:1fr 1.4fr 1fr; gap:10px; }
+  .palco-body{ padding:8px; }
+  .main-palco-body{ padding:0 8px 8px; }
+
+  .grid-rows{ gap:3px; }
+  .row{ grid-template-columns:20px repeat(auto-fit, minmax(30px,1fr)); gap:2px; }
+  .row-label{ width:20px; padding:2px 0; font-size:.55rem; line-height:1.05; border-radius:4px; }
+  .seat{ min-width:30px; height:16px; border-radius:8px; font-size:.5rem; line-height:1.05; padding:0 2px; }
+
+  .palco-lateral .palco-body,
+  .palco-lateral .grid-rows-wrap,
+  .palco-principal .palco-body,
+  .palco-principal .grid-rows-wrap{ overflow-x:auto !important; }
+}
+
+/* Forzar ancho mínimo general para scroll horizontal si hace falta */
+@media (min-width:901px){
+  .palcos-layout{ min-width:1560px; }
+  .palco-body, .grid-rows-wrap{ overflow-x:visible !important; }
+}
+
+/* HOTFIX tabs en mobile dentro del window */
+@media (max-width: 900px){
+  .palcos-window .palco-body,
+  .palcos-window .grid-rows-wrap{
+    overflow-x:auto !important; overflow-y:hidden !important; -webkit-overflow-scrolling:touch;
+  }
+  .palcos-window .grid-rows{ min-width:max(480px, 100%) !important; }
+  .palcos-window .palco-lateral .palco-body,
+  .palcos-window .palco-lateral .grid-rows-wrap,
+  .palcos-window .palco-principal .palco-body,
+  .palcos-window .palco-principal .grid-rows-wrap{
+    overflow-x:auto !important; overflow-y:hidden !important;
+  }
+  .nowrap{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+}
 </style>
