@@ -423,7 +423,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { useDisplay } from 'vuetify'
 import { useSeatsStore } from '../stores'
-import { usePeopleStore } from '@/stores/peopleStore'
 import api from '../services/api'
 
 /* ===== Breakpoint ===== */
@@ -471,14 +470,8 @@ function rebuildSeatToPalco () {
 
 /* Load inicial */
 onMounted(async () => {
-  const people = usePeopleStore()
-  // 1) Traemos personas (presencias/asignaciones)
-  await people.fetchAll()
-  // 2) Traemos mapas de los 3 palcos
-  await Promise.all([loadPalco(1), loadPalco(2), loadPalco(3)])
-  // 3) Índices + bridge de reactividad con Pinia
+  await Promise.all([loadPalco(1), loadPalco(2), loadPalco(3), store.ensureLoaded()])
   rebuildSeatToPalco()
-  store.ensureWired()
   globalLoading.value = false
 })
 
@@ -533,8 +526,7 @@ const tabToPalcoId = { IZQ: 2, P: 1, DER: 3 }
 
 const presentRowsByPalco = computed(() => {
   const acc = { 1: [], 2: [], 3: [] }
-  const people = usePeopleStore()
-  ;(people.list || []).forEach(p => {
+  store.people.forEach(p => {
     if (!p.present) return
     const pid = seatToPalcoId.value[p.seat]
     if (!pid) return
