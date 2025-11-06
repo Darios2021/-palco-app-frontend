@@ -86,7 +86,7 @@
             </v-select>
           </v-col>
 
-          <!-- CONTROLES DE ASIENTO (no mostrar select si ya tiene uno, salvo que toque 'Cambiar') -->
+          <!-- CONTROLES DE ASIENTO -->
           <v-col cols="12" sm="6" md="8" class="d-flex align-end">
             <div class="w-100">
               <div class="d-flex align-center justify-space-between mb-2">
@@ -194,8 +194,15 @@
       </div>
     </v-form>
 
-    <v-snackbar v-model="snackbar.show" :timeout="3000" :color="snackbar.ok ? 'success' : 'error'"
-      location="bottom right" rounded="lg" elevation="8" class="snackbar-strong">
+    <v-snackbar
+      v-model="snackbar.show"
+      :timeout="3000"
+      :color="snackbar.ok ? 'success' : 'error'"
+      location="bottom right"
+      rounded="lg"
+      elevation="8"
+      class="snackbar-strong"
+    >
       <div class="d-flex align-center">
         <v-icon class="mr-2" size="20">{{ snackbar.ok ? 'mdi-check-circle' : 'mdi-alert-circle' }}</v-icon>
         <span class="font-weight-600">{{ snackbar.text }}</span>
@@ -207,14 +214,14 @@
 <script setup>
 import { computed, reactive, ref, watch, onMounted } from 'vue'
 import { useDisplay } from 'vuetify'
-import { useSeatsStore } from '../stores'
-import api from '../services/api'
+import { usePeopleStore } from '@/stores/peopleStore'   // ✅ CRUD correcto
+import api from '@/services/api'
 
 const props = defineProps({ person: { type: Object, required: true } })
 const emit  = defineEmits(['saved','cancel','update:person'])
 
 const { smAndDown } = useDisplay()
-const store = useSeatsStore()
+const people = usePeopleStore()                         // ✅ fuente de verdad
 
 /* ===== refs ===== */
 const formRef = ref(null)
@@ -222,7 +229,7 @@ const loading = ref(false)
 const loadingPalcos = ref(false)
 const loadingPeople = ref(false)
 const triedSubmit = ref(false)
-const editingSeat = ref(false)   // <<<< NUEVO
+const editingSeat = ref(false)   // controla si muestro el select de asiento
 
 const snackbar = reactive({ show:false, text:'', ok:true })
 const showToast = (t, ok=true)=>{ snackbar.text=t; snackbar.ok=ok; snackbar.show=true }
@@ -243,8 +250,7 @@ async function fetchPalcos(){
 async function ensurePeopleLoaded(){
   loadingPeople.value = true
   try{
-    if (store.ensureLoaded) await store.ensureLoaded()
-    else if (store.refresh) await store.refresh()
+    if (typeof people.fetchAll === 'function') await people.fetchAll()
   } finally { loadingPeople.value = false }
 }
 
@@ -266,17 +272,21 @@ const nameError = computed(()=> triedSubmit.value && (!form.name || String(form.
 
 /* filas/cols por palco */
 function rowsForPalco(id){
-  if (id===1) return ['A','B','C','D','E','F','G']
-  if (id===2) return ['H','I','J','K','L']
-  if (id===3) return ['M','N','O','P','Q']
-  return ['A','B','C','D']
+  if (id===1) return ['A','B','C','D','E','F']
+  if (id===2) return ['G','H','I']
+  if (id===3) return ['J','K','L']
+  return []
 }
-const COLS = 12
+function colsForRow(letter){
+  if ('ABCDEF'.includes(letter)) return 10
+  if ('GHIJKL'.includes(letter)) return 4
+  return 0
+}
 
-/* status asiento */
+/* status asiento: mirar people.list */
 function seatStatusFromStore(code){
   if (!code) return 'free'
-  const p = (store.people || []).find(p => p.seat === code)
+  const p = (people.list || []).find(p => p.seat === code)
   if (!p) return 'free'
   return p.present ? 'present' : 'assigned'
 }
@@ -290,7 +300,10 @@ const seatOptions = computed(()=>{
   if (!pid) return []
   const rows = rowsForPalco(pid)
   const codes=[]
-  for (const r of rows) for (let i=1;i<=COLS;i++) codes.push(`${r}${i}`)
+  for (const r of rows){
+    const n = colsForRow(r)
+    for (let i=1;i<=n;i++) codes.push(`${r}${i}`)
+  }
   return codes.map(code=>({ code, status: seatStatusFromStore(code), title: code, value: code }))
 })
 const menuProps = computed(()=>({ maxHeight: smAndDown.value ? 260 : 360, offset: smAndDown.value ? 6 : 8 }))
@@ -304,9 +317,9 @@ watch(()=>props.person, (v)=>{
   // Inferir palco por letra de fila
   const seat = v?.seat ? String(v.seat) : ''
   const L = seat.charAt(0).toUpperCase()
-  if ('ABCDEFG'.includes(L)) selectedPalcoId.value = 1
-  else if ('HIJKL'.includes(L)) selectedPalcoId.value = 2
-  else if ('MNOPQ'.includes(L)) selectedPalcoId.value = 3
+  if ('ABCDEF'.includes(L)) selectedPalcoId.value = 1
+  else if ('GHI'.includes(L)) selectedPalcoId.value = 2
+  else if ('JKL'.includes(L)) selectedPalcoId.value = 3
 
   // Si tiene asiento, no estamos editando el campo hasta que toque "Cambiar"
   editingSeat.value = !v?.seat
@@ -318,7 +331,7 @@ function clearSeat(){ form.seat = null; editingSeat.value = true }
 
 /* helpers */
 function normalizePayload(p){ const out={...p}; if (out.seat==='') out.seat=null; return out }
-async function refreshStore(){ if (store.refresh) await store.refresh(); else if (store.ensureLoaded) await store.ensureLoaded() }
+async function refreshPeople(){ if (typeof people.fetchAll === 'function') await people.fetchAll() }
 
 /* submit */
 async function onSubmit(){
@@ -329,14 +342,14 @@ async function onSubmit(){
     const valid = typeof vr==='object'? vr.valid : !!vr
     if (!valid){ loading.value=false; return }
 
-    await store.updatePerson(props.person.id, normalizePayload(form))
+    await people.updatePerson(props.person.id, normalizePayload(form)) // ✅ FIX: usar peopleStore
     showToast('Cambios guardados.', true)
-    await refreshStore()
+    await refreshPeople()
     emit('update:person', { ...props.person, ...form })
     emit('saved', { id: props.person.id })
   }catch(e){
     console.error(e); showToast(e?.message || 'Error al guardar.', false)
-  }finally{ loading.value=false }
+  }finally{ loading.value = false }
 }
 
 onMounted(async()=>{ await ensurePeopleLoaded(); await fetchPalcos() })
