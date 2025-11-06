@@ -343,7 +343,7 @@
     <div class="table-wrap">
       <v-data-table
         :headers="headers"
-        :items="filteredRows"
+        :items="numberedRows"
         :items-per-page="itemsPerPage"
         class="present-table"
         hover
@@ -353,6 +353,10 @@
         density="comfortable"
       >
         <template #bottom></template>
+
+        <template #item.n="{ item }">
+          <span class="text-dim font-weight-700">{{ item.n }}</span>
+        </template>
 
         <template #item.name="{ item }">
           <div class="d-flex align-center">
@@ -455,7 +459,6 @@ const people = usePeopleStore()
 
 /* ===== Helpers ===== */
 function letterFor(index) { return String.fromCharCode('A'.charCodeAt(0) + index) }
-// Remapea las letras de las filas empezando en la letra indicada (conserva orden y códigos)
 function remapLetters(rows = [], startLetter = 'A') {
   const base = startLetter.charCodeAt(0)
   return rows.map((r, i) => ({ ...r, letter: String.fromCharCode(base + i) }))
@@ -471,7 +474,6 @@ const palcoMap = ref({
 const globalLoading = ref(true)
 const activeTab = ref('P') // IZQ | P | DER
 
-/* Igual que en SeatPicker: filtra filas vacías y numera por índice */
 function transformSeatsResponse (data) {
   const seatsArr = Array.isArray(data?.seats) ? data.seats : []
   const rowsOut = seatsArr
@@ -511,7 +513,6 @@ onMounted(async () => {
   rebuildSeatToPalco()
   globalLoading.value = false
 
-  // suscripción reactiva: si cambia people.list, refresca status
   unsubscribePeople = people.$subscribe(() => {
     seats._rebuildStatusFromPeople(people.list)
   }, { detached: true })
@@ -522,7 +523,6 @@ onMounted(async () => {
     after(() => seats._rebuildStatusFromPeople(people.list))
   })
 
-  // auto-pull cada 15 s (multiusuario)
   autoPull = setInterval(() => people.fetchAll().catch(()=>{}), 15000)
 })
 
@@ -534,34 +534,29 @@ onBeforeUnmount(() => {
 
 /* ===== Computed filas ===== */
 const ALLOWED_PRINCIPAL_LETTERS = new Set(['A','B','C','D','E','F'])
-
 const palcoPrincipalRows = computed(() =>
   (palcoMap.value[1]?.rows || [])
     .filter(r => r?.codes?.length)
-    .filter(r => ALLOWED_PRINCIPAL_LETTERS.has(r.letter))  // ⛔ excluye G
+    .filter(r => ALLOWED_PRINCIPAL_LETTERS.has(r.letter))
 )
 
-// Base laterales (tal cual backend, solo filtradas)
 const palcoIzqRowsBase = computed(() => (palcoMap.value[2]?.rows || []).filter(r => r?.codes?.length))
 const palcoDerRowsBase = computed(() => (palcoMap.value[3]?.rows || []).filter(r => r?.codes?.length))
-
-// ✅ Laterales con letras correctas: IZQ = G,H,I — DER = J,K,L (ascendente de abajo hacia arriba)
 const palcoIzqRows = computed(() => remapLetters(palcoIzqRowsBase.value, 'G'))
 const palcoDerRows = computed(() => remapLetters(palcoDerRowsBase.value, 'J'))
 
-/* ======= META (forzamos nombres visibles consistentes) ======= */
+/* ======= META ======= */
 const palcoPrincipalMeta = computed(() => ({ id: 1, name: 'PALCO PRINCIPAL' }))
-const palcoIzqMeta       = computed(() => ({ id: 2, name: 'PALCO B' }))   // IZQ = G/H/I
-const palcoDerMeta       = computed(() => ({ id: 3, name: 'PALCO A' }))   // DER = J/K/L
+const palcoIzqMeta       = computed(() => ({ id: 2, name: 'PALCO B' }))
+const palcoDerMeta       = computed(() => ({ id: 3, name: 'PALCO A' }))
 
-/* Helper nombre por id */
 const palcoNameById = (pid) => (
   pid === 1 ? palcoPrincipalMeta.value.name :
   pid === 2 ? palcoIzqMeta.value.name :
   pid === 3 ? palcoDerMeta.value.name : '—'
 )
 
-/* ===== Orden PALCO PRINCIPAL (A/C/E vs B/D/F por paridad) ===== */
+/* Orden en principal */
 const palcoPrincipalLeftRows = computed(() =>
   (palcoPrincipalRows.value || []).filter(r => (r.letter.charCodeAt(0) - 65) % 2 === 0)
 )
@@ -571,6 +566,7 @@ const palcoPrincipalRightRows = computed(() =>
 
 /* ===== Tabla de presentes ===== */
 const headers = [
+  { title: 'N°',        key: 'n',         sortable: true },
   { title: 'Asiento',   key: 'seat',      sortable: true },
   { title: 'Palco',     key: 'palco',     sortable: true },
   { title: 'Nombre',    key: 'name',      sortable: true },
@@ -622,13 +618,18 @@ const filteredRows = computed(() => {
   )
 })
 
+/* Numeración (1..n) sobre el conjunto filtrado actual */
+const numberedRows = computed(() =>
+  filteredRows.value.map((r, i) => ({ ...r, n: i + 1 }))
+)
+
 /* Tabla responsive */
 const tableHeight  = computed(() => (smForTable.value ? 340 : 420))
 const itemsPerPage = computed(() => (smForTable.value ? 10  : 25))
 
 /* Estado visual de cada asiento */
 function seatStatusClass (code) {
-  return seats.seatStatus?.(code) || 'free' // 'present' | 'assigned' | 'free'
+  return seats.seatStatus?.(code) || 'free'
 }
 
 /* Modal detalle asiento */
@@ -655,9 +656,26 @@ function formatDateTime (iso, compact = false) {
   } catch { return iso }
 }
 
-/* Export HTML (para imprimir/guardar como PDF desde el navegador) */
-function exportPDF () {
-  const rows = filteredRows.value
+/* ====== Carga de librerías PDF (UMD por CDN) ====== */
+function loadScript (src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script')
+    s.src = src
+    s.async = true
+    s.onload = () => resolve()
+    s.onerror = () => reject(new Error('No se pudo cargar ' + src))
+    document.head.appendChild(s)
+  })
+}
+async function ensureJsPDF () {
+  if (window.jspdf?.jsPDF && window.jspdfAutoTable) return
+  await loadScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js')
+  await loadScript('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js')
+}
+
+/* ===== Exportar a PDF real ===== */
+async function exportPDF () {
+  const rows = numberedRows.value
   if (!rows.length) { alert('No hay datos para exportar.'); return }
 
   const palcoName =
@@ -665,38 +683,63 @@ function exportPDF () {
       : currentPalcoId.value === 2 ? (palcoIzqMeta.value.name || 'Palco Izquierdo')
       : (palcoDerMeta.value.name || 'Palco Derecho')
 
-  const htmlRows = rows.map(r => (
-    '<tr>' +
-      '<td>' + (r.seat || '') + '</td>' +
-      '<td>' + (r.palco || '') + '</td>' +
-      '<td>' + String(r.name || '').replace(/</g, '&lt;') + '</td>' +
-      '<td>' + String(r.cargo || '') + '</td>' +
-      '<td>' + String(r.org || '').replace(/</g, '&lt;') + '</td>' +
-      '<td>' + formatDateTime(r.presentAt) + '</td>' +
-    '</tr>'
-  )).join('')
+  try {
+    await ensureJsPDF()
+    const { jsPDF } = window.jspdf
+    const doc = new jsPDF('p', 'pt', 'a4')
 
-  const html =
-    '<!doctype html><html><head><meta charset="utf-8"/>' +
-    '<title>Presentes - ' + palcoName + '</title>' +
-    '<style>@page{size:A4;margin:14mm;}body{font-family:Arial,Helvetica,sans-serif;color:#0b0d28;}h1{font-size:18px;margin:0 0 6px 0;}h2{font-size:12px;margin:0 0 10px 0;color:#333;}table{width:100%;border-collapse:collapse;font-size:11px;}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left;}th{background:#0b0d28;color:#ffd951;}tr:nth-child(odd) td{background:#fafafa;}.muted{color:#666;}</style>' +
-    '</head><body>' +
-    '<h1>Presentes en Palco</h1>' +
-    '<h2 class="muted">Palco: ' + palcoName + ' · Generado: ' + new Date().toLocaleString('es-AR') + '</h2>' +
-    '<table><thead><tr><th>Asiento</th><th>Palco</th><th>Nombre</th><th>Cargo</th><th>Organismo</th><th>Ingreso</th></tr></thead><tbody>' +
-    htmlRows +
-    '</tbody></table>' +
-    '</body></html>'
+    // Encabezado
+    const title = 'Presentes en Palco'
+    const subtitle = `Palco: ${palcoName} · Generado: ${new Date().toLocaleString('es-AR')}`
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(16)
+    doc.text(title, 40, 40)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.text(subtitle, 40, 58)
 
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'presentes-' + palcoName + '.html'
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
+    // Tabla
+    const head = [['N°', 'Asiento', 'Palco', 'Nombre', 'Cargo', 'Organismo', 'Ingreso']]
+    const body = rows.map(r => [
+      r.n ?? '',
+      r.seat || '',
+      r.palco || '',
+      r.name || '',
+      r.cargo || '',
+      r.org || '',
+      formatDateTime(r.presentAt) || ''
+    ])
+
+    doc.autoTable({
+      head,
+      body,
+      startY: 72,
+      styles: { font: 'helvetica', fontSize: 9, cellPadding: 6, overflow: 'linebreak' },
+      headStyles: { fillColor: [11, 13, 40], textColor: [255, 217, 81] },
+      columnStyles: {
+        0: { cellWidth: 32 },   // N°
+        1: { cellWidth: 64 },   // Asiento
+        2: { cellWidth: 90 },   // Palco
+        3: { cellWidth: 150 },  // Nombre
+        4: { cellWidth: 110 },  // Cargo
+        5: { cellWidth: 150 },  // Organismo
+        6: { cellWidth: 90 },   // Ingreso
+      },
+      didDrawPage () {
+        const pageSize = doc.internal.pageSize
+        const footer = `Página ${doc.internal.getNumberOfPages()}`
+        doc.setFontSize(8)
+        doc.text(footer, pageSize.getWidth() - 60, pageSize.getHeight() - 12)
+      },
+      margin: { top: 72, right: 24, bottom: 24, left: 24 }
+    })
+
+    doc.save(`presentes-${palcoName}.pdf`)
+  } catch (err) {
+    console.error(err)
+    const ok = confirm('No se pudo generar el PDF directo. ¿Abrir diálogo de impresión para guardar como PDF?')
+    if (ok) window.print()
+  }
 }
 </script>
 
@@ -819,7 +862,7 @@ function exportPDF () {
 .seat.present{ background:#4caf50 !important; color:#fff !important; }
 .seat.assigned{ background:#ffb300 !important; color:#0b0d28 !important; }
 
-/* ===== PASILLO CENTRAL (del layout) ===== */
+/* ===== PASILLO CENTRAL ===== */
 .principal-split{
   display:grid;
   grid-template-columns: 1fr 18px 1fr;
@@ -832,45 +875,17 @@ function exportPDF () {
   border-radius:3px;
 }
 
-/* ======== COMPACTACIÓN ESTÁNDAR (aplicada a Principal y Laterales) ======== */
-/* — Principal — */
-.palco-principal .grid-rows{
-  gap:3px !important;
-  min-width:max(320px,100%) !important;
-}
-.palco-principal .row{
-  grid-template-columns:20px repeat(auto-fit, minmax(30px, 1fr)) !important;
-  gap:2px !important;
-}
-.palco-principal .row-label{
-  width:20px !important; font-size:.5rem !important; padding:1px 0 !important; border-radius:5px !important;
-}
-.palco-principal .seat.v-btn{
-  min-width:30px !important; width:30px !important; height:18px !important;
-  font-size:.5rem !important; border-radius:7px !important; padding:0 2px !important; line-height:1 !important;
-}
-.palco-principal .principal-split{
-  grid-template-columns: 1fr 14px 1fr !important;
-  gap:3px !important;
-}
+/* ===== COMPACTACIÓN ESTÁNDAR ===== */
+.palco-principal .grid-rows{ gap:3px !important; min-width:max(320px,100%) !important; }
+.palco-principal .row{ grid-template-columns:20px repeat(auto-fit, minmax(30px, 1fr)) !important; gap:2px !important; }
+.palco-principal .row-label{ width:20px !important; font-size:.5rem !important; padding:1px 0 !important; border-radius:5px !important; }
+.palco-principal .seat.v-btn{ min-width:30px !important; width:30px !important; height:18px !important; font-size:.5rem !important; border-radius:7px !important; padding:0 2px !important; line-height:1 !important; }
+.palco-principal .principal-split{ grid-template-columns: 1fr 14px 1fr !important; gap:3px !important; }
 
-/* — Laterales (mismo tamaño y separación que el principal) — */
-.palco-lateral .grid-rows{
-  gap:3px !important;
-  min-width:max(320px,100%) !important;
-}
-.palco-lateral .row{
-  grid-template-columns:20px repeat(auto-fit, minmax(30px, 1fr)) !important;
-  gap:2px !important;
-}
-.palco-lateral .row-label{
-  width:20px !important; font-size:.5rem !important; padding:1px 0 !important; border-radius:5px !important;
-}
-.palco-lateral .seat.v-btn{
-  min-width:30px !important; width:30px !important; height:18px !important;
-  font-size:.5rem !important; border-radius:7px !important; padding:0 2px !important; line-height:1 !important;
-  margin:0 !important;
-}
+.palco-lateral .grid-rows{ gap:3px !important; min-width:max(320px,100%) !important; }
+.palco-lateral .row{ grid-template-columns:20px repeat(auto-fit, minmax(30px, 1fr)) !important; gap:2px !important; }
+.palco-lateral .row-label{ width:20px !important; font-size:.5rem !important; padding:1px 0 !important; border-radius:5px !important; }
+.palco-lateral .seat.v-btn{ min-width:30px !important; width:30px !important; height:18px !important; font-size:.5rem !important; border-radius:7px !important; padding:0 2px !important; line-height:1 !important; margin:0 !important; }
 
 /* ===== TABLA ===== */
 .table-wrap{ width:100%; overflow-x:auto; }
@@ -887,58 +902,16 @@ function exportPDF () {
 /* ===== MOBILE ===== */
 @media (max-width:900px){
   .legend :deep(.v-chip){ height:16px; font-size:9.5px; padding:0 4px !important; }
-
-  .grid-rows-wrap{
-    overflow-x:auto !important;
-    overflow-y:hidden !important;
-    -webkit-overflow-scrolling:touch;
-    padding-bottom:3px;
-  }
-  .grid-rows{
-    gap:5px !important;
-    min-width:max(340px,100%) !important;
-  }
-  .row{
-    grid-template-columns:24px repeat(auto-fit, minmax(38px, 1fr)) !important;
-    grid-auto-flow:column !important;
-    align-items:center !important;
-    gap:3px !important;
-  }
-  .row-label{
-    width:24px !important; padding:2px 0 !important; font-size:.55rem !important;
-  }
-  .seat.v-btn{
-    min-width:38px !important; width:38px !important; height:22px !important;
-    border-radius:9px !important; font-size:.55rem !important; padding:0 3px !important;
-  }
-  .principal-split{
-    grid-template-columns:1fr 18px 1fr !important;
-    gap:4px !important;
-  }
-
-  /* Compacto mobile – mismo estándar en todos los palcos */
-  .palco-principal .grid-rows,
-  .palco-lateral .grid-rows{ gap:3px !important; min-width:max(280px,100%) !important; }
-
-  .palco-principal .row,
-  .palco-lateral .row{
-    grid-template-columns:18px repeat(auto-fit, minmax(28px, 1fr)) !important;
-    gap:2px !important;
-  }
-
-  .palco-principal .row-label,
-  .palco-lateral .row-label{
-    width:18px !important; font-size:.48rem !important; padding:1px 0 !important;
-  }
-
-  .palco-principal .seat.v-btn,
-  .palco-lateral .seat.v-btn{
-    min-width:28px !important; width:28px !important; height:16px !important;
-    font-size:.48rem !important; border-radius:7px !important; padding:0 2px !important; margin:0 !important;
-  }
-
-  .palco-principal .principal-split{
-    grid-template-columns:1fr 12px 1fr !important;
-  }
+  .grid-rows-wrap{ overflow-x:auto !important; overflow-y:hidden !important; -webkit-overflow-scrolling:touch; padding-bottom:3px; }
+  .grid-rows{ gap:5px !important; min-width:max(340px,100%) !important; }
+  .row{ grid-template-columns:24px repeat(auto-fit, minmax(38px, 1fr)) !important; grid-auto-flow:column !important; align-items:center !important; gap:3px !important; }
+  .row-label{ width:24px !important; padding:2px 0 !important; font-size:.55rem !important; }
+  .seat.v-btn{ min-width:38px !important; width:38px !important; height:22px !important; border-radius:9px !important; font-size:.55rem !important; padding:0 3px !important; }
+  .principal-split{ grid-template-columns:1fr 18px 1fr !important; gap:4px !important; }
+  .palco-principal .grid-rows, .palco-lateral .grid-rows{ gap:3px !important; min-width:max(280px,100%) !important; }
+  .palco-principal .row, .palco-lateral .row{ grid-template-columns:18px repeat(auto-fit, minmax(28px, 1fr)) !important; gap:2px !important; }
+  .palco-principal .row-label, .palco-lateral .row-label{ width:18px !important; font-size:.48rem !important; padding:1px 0 !important; }
+  .palco-principal .seat.v-btn, .palco-lateral .seat.v-btn{ min-width:28px !important; width:28px !important; height:16px !important; font-size:.48rem !important; border-radius:7px !important; padding:0 2px !important; margin:0 !important; }
+  .palco-principal .principal-split{ grid-template-columns:1fr 12px 1fr !important; }
 }
 </style>
