@@ -26,7 +26,7 @@
         </div>
 
         <template v-else>
-          <!-- ===== TABS (mismo diseño que SeatMap.vue) ===== -->
+          <!-- ===== TABS (alineado a SeatMap.vue) ===== -->
           <v-tabs v-model="activeTab" class="palcos-tabs tabs-compact" grow>
             <v-tab value="IZQ" class="tab-compact">IZQ</v-tab>
             <v-tab value="P" class="tab-compact">PRINCIPAL</v-tab>
@@ -34,20 +34,21 @@
           </v-tabs>
 
           <v-window v-model="activeTab" class="palcos-window" :touch="false">
-            <!-- === TAB IZQ === -->
+            <!-- === TAB IZQ = PALCO B (J,K,L bottom→top) === -->
             <v-window-item value="IZQ" class="palco-window-item">
               <section class="palco-block">
                 <header class="palco-header">
                   <div class="palco-header-inner">
                     <v-icon size="18" class="mr-1">mdi-view-grid</v-icon>
-                    <span class="palco-title">{{ palcoIzqMeta.name }}</span>
+                    <!-- Nombre fijo en la UI -->
+                    <span class="palco-title">PALCO B</span>
                   </div>
                 </header>
 
                 <div class="palco-body">
                   <div class="grid-rows-wrap">
                     <div class="grid-rows">
-                      <div v-for="(row, rIdx) in palcoIzqRows" :key="'IZQ-'+rIdx" class="row">
+                      <div v-for="row in palcoIzqRows" :key="'IZQ-'+row.letter" class="row">
                         <div class="row-label">{{ row.letter }}</div>
                         <v-btn
                           v-for="code in row.codes"
@@ -64,11 +65,11 @@
                   </div>
                 </div>
 
-                <footer class="palco-footer">Lateral izquierdo (4×4)</footer>
+                <footer class="palco-footer">Palco B — Lateral izquierdo</footer>
               </section>
             </v-window-item>
 
-            <!-- === TAB PRINCIPAL === -->
+            <!-- === TAB PRINCIPAL (A–F) === -->
             <v-window-item value="P" class="palco-window-item">
               <section class="palco-block palco-principal">
                 <header class="palco-header">
@@ -80,10 +81,10 @@
 
                 <div class="palco-body main-palco-body">
                   <div class="principal-split">
-                    <!-- IZQUIERDA -->
+                    <!-- IZQUIERDA: A/C/E -->
                     <div class="grid-rows-wrap">
                       <div class="grid-rows">
-                        <div v-for="(row, rIdx) in palcoPrincipalLeftRows" :key="'P-L-'+rIdx" class="row">
+                        <div v-for="row in palcoPrincipalLeftRows" :key="'P-L-'+row.letter" class="row">
                           <div class="row-label">{{ row.letter }}</div>
                           <v-btn
                             v-for="code in row.codes"
@@ -99,13 +100,13 @@
                       </div>
                     </div>
 
-                    <!-- PASILLO CENTRAL (mismo estilo) -->
+                    <!-- PASILLO CENTRAL -->
                     <div class="aisle-vert" aria-hidden="true"></div>
 
-                    <!-- DERECHA -->
+                    <!-- DERECHA: B/D/F -->
                     <div class="grid-rows-wrap">
                       <div class="grid-rows">
-                        <div v-for="(row, rIdx) in palcoPrincipalRightRows" :key="'P-R-'+rIdx" class="row">
+                        <div v-for="row in palcoPrincipalRightRows" :key="'P-R-'+row.letter" class="row">
                           <div class="row-label">{{ row.letter }}</div>
                           <v-btn
                             v-for="code in row.codes"
@@ -127,20 +128,21 @@
               </section>
             </v-window-item>
 
-            <!-- === TAB DER === -->
+            <!-- === TAB DER = PALCO A (J,K,L bottom→top) === -->
             <v-window-item value="DER" class="palco-window-item">
               <section class="palco-block">
                 <header class="palco-header">
                   <div class="palco-header-inner">
                     <v-icon size="18" class="mr-1">mdi-view-grid-plus</v-icon>
-                    <span class="palco-title">{{ palcoDerMeta.name }}</span>
+                    <!-- Nombre fijo en la UI -->
+                    <span class="palco-title">PALCO A</span>
                   </div>
                 </header>
 
                 <div class="palco-body">
                   <div class="grid-rows-wrap">
                     <div class="grid-rows">
-                      <div v-for="(row, rIdx) in palcoDerRows" :key="'DER-'+rIdx" class="row">
+                      <div v-for="row in palcoDerRows" :key="'DER-'+row.letter" class="row">
                         <div class="row-label">{{ row.letter }}</div>
                         <v-btn
                           v-for="code in row.codes"
@@ -157,7 +159,7 @@
                   </div>
                 </div>
 
-                <footer class="palco-footer">Lateral derecho (4×6)</footer>
+                <footer class="palco-footer">Palco A — Lateral derecho</footer>
               </section>
             </v-window-item>
           </v-window>
@@ -187,16 +189,16 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch, watchEffect } from 'vue'
 import { useDisplay } from 'vuetify'
 import api from '@/services/api'
 
 /* ===== Props / Emits ===== */
 const props = defineProps({
-  modelValue: { type: Boolean, default: false },
-  currentSeat: { type: String, default: '' },   // asiento actual de la persona
-  personName: { type: String, default: '' },
-  allowAssigned: { type: Boolean, default: false }, // si querés poder tomar "assigned"
+  modelValue:   { type: Boolean, default: false },
+  currentSeat:  { type: String,  default: '' },
+  personName:   { type: String,  default: '' },
+  allowAssigned:{ type: Boolean, default: false },
 })
 const emit = defineEmits(['update:modelValue', 'confirm'])
 
@@ -212,99 +214,130 @@ const globalLoading = ref(true)
 
 /* ===== Selección ===== */
 const selectedSeatLocal = ref('')
-watch(() => props.currentSeat, v => { if (!selectedSeatLocal.value) selectedSeatLocal.value = v || '' }, { immediate: true })
+watch(() => props.currentSeat, v => {
+  if (!selectedSeatLocal.value) selectedSeatLocal.value = v || ''
+}, { immediate: true })
 
-/* ===== Datos (mismo modelo visual que SeatMap.vue) ===== */
+/* ===== Datos (no confiamos en name del backend) ===== */
 const palcoMap = ref({
-  1: { id: 1, name: 'PALCO PRINCIPAL', rows: [], status: {} },
-  2: { id: 2, name: 'PALCO IZQUIERDO', rows: [], status: {} },
-  3: { id: 3, name: 'PALCO DERECHO', rows: [], status: {} },
+  1: { id: 1, rows: [], status: {} }, // Principal (A–F)
+  2: { id: 2, rows: [], status: {} }, // IZQ  = Palco B (se remapea a J–L)
+  3: { id: 3, rows: [], status: {} }, // DER  = Palco A (se remapea a J–L)
 })
 
-function letterFor(index) { return String.fromCharCode('A'.charCodeAt(0) + index) }
+/* Construye filas por índice (A + idx) y filtra vacías */
+const letterForIndex = (idx) => String.fromCharCode('A'.charCodeAt(0) + idx)
+function rowsFromSeatsByIndex(seats2D = []) {
+  const out = []
+  seats2D.forEach((rowArr, idx) => {
+    const codes = (rowArr || []).filter(c => typeof c === 'string' && c.trim().length)
+    if (codes.length) out.push({ letter: letterForIndex(idx), codes })
+  })
+  return out
+}
 
-/* Mantengo el filtro de filas vacías */
 function transformSeatsResponse(data) {
-  const seats = Array.isArray(data?.seats) ? data.seats : []
+  const seats  = Array.isArray(data?.seats) ? data.seats : []
   const status = data?.status || {}
-  const rowsOut = seats
-    .map((rowArr, idx) => {
-      const codes = (rowArr || []).filter(code => code && typeof code === 'string')
-      return codes.length ? { letter: letterFor(idx), codes } : null
-    })
-    .filter(Boolean)
-  return { id: data.palcoId, name: data.name, rows: rowsOut, status }
+  return { id: data?.palcoId, rows: rowsFromSeatsByIndex(seats), status }
 }
 
 async function loadPalco(pId) {
   const { data } = await api.get(`/palcos/${pId}/seats`)
-  palcoMap.value[pId] = transformSeatsResponse(data)
+  const parsed = transformSeatsResponse(data)
+  palcoMap.value[pId] = { ...palcoMap.value[pId], ...parsed } // preserva nuestros names
 }
 async function loadAll() {
   globalLoading.value = true
-  try { await Promise.all([1, 2, 3].map(loadPalco)) }
+  try { await Promise.all([1,2,3].map(loadPalco)) }
   finally { globalLoading.value = false }
 }
 onMounted(loadAll)
 
-/* ===== Computed (mismo layout) ===== */
-const ALLOWED_PRINCIPAL_LETTERS = new Set(['A','B','C','D','E','F'])
+/* ===== Helpers ===== */
+function seatInPalco(pId, code) {
+  const rows = palcoMap.value[pId]?.rows || []
+  for (const r of rows) if (r.codes?.includes(code)) return true
+  return false
+}
 
-const palcoPrincipalRows  = computed(() =>
-  (palcoMap.value[1]?.rows || [])
-    .filter(r => r?.codes?.length)
-    .filter(r => ALLOWED_PRINCIPAL_LETTERS.has(r.letter))   // ⛔ excluye G
+/* Remapea letras de laterales a J,K,L (orden estable) */
+function remapRowsToLetters(rows = [], targetLetters = ['J','K','L']) {
+  const sorted = [...rows] // orden visual abajo→arriba lo maneja el CSS (column-reverse)
+  return sorted.slice(0, targetLetters.length).map((r, i) => ({ ...r, letter: targetLetters[i] }))
+}
+
+/* ===== Computed ===== */
+const ALLOWED_PRINCIPAL = new Set(['A','B','C','D','E','F'])
+const palcoPrincipalRows = computed(() =>
+  (palcoMap.value[1]?.rows || []).filter(r => r?.codes?.length && ALLOWED_PRINCIPAL.has(r.letter))
 )
-const palcoIzqRows        = computed(() => (palcoMap.value[2]?.rows || []).filter(r => r?.codes?.length))
-const palcoDerRows        = computed(() => (palcoMap.value[3]?.rows || []).filter(r => r?.codes?.length))
 
-const palcoPrincipalMeta  = computed(() => ({ id: 1, name: palcoMap.value[1]?.name || 'PALCO PRINCIPAL' }))
-const palcoIzqMeta        = computed(() => ({ id: 2, name: palcoMap.value[2]?.name || 'PALCO IZQUIERDO' }))
-const palcoDerMeta        = computed(() => ({ id: 3, name: palcoMap.value[3]?.name || 'PALCO DERECHO' }))
+/* Laterales: siempre J,K,L */
+const palcoIzqRows = computed(() => {
+  const base = (palcoMap.value[2]?.rows || []).filter(r => r?.codes?.length)
+  return remapRowsToLetters(base, ['J','K','L'])
+})
+const palcoDerRows = computed(() => {
+  const base = (palcoMap.value[3]?.rows || []).filter(r => r?.codes?.length)
+  return remapRowsToLetters(base, ['J','K','L'])
+})
 
-/* Partimos filas del principal en dos columnas para el pasillo (A/C/E y B/D/F) */
-const palcoPrincipalLeftRows = computed(() =>
+/* Nombres fijos (solo usados en Principal; laterales se hardcodean en template) */
+const palcoPrincipalMeta = computed(() => ({ id: 1, name: 'PALCO PRINCIPAL' }))
+const palcoIzqMeta       = computed(() => ({ id: 2, name: 'PALCO B' })) // IZQ
+const palcoDerMeta       = computed(() => ({ id: 3, name: 'PALCO A' })) // DER
+
+/* Split principal (pasillo) */
+const palcoPrincipalLeftRows  = computed(() =>
   (palcoPrincipalRows.value || []).filter(r => (r.letter.charCodeAt(0) - 65) % 2 === 0)
 )
 const palcoPrincipalRightRows = computed(() =>
   (palcoPrincipalRows.value || []).filter(r => (r.letter.charCodeAt(0) - 65) % 2 === 1)
 )
 
-/* ===== Estados / Clases ===== */
+/* ===== Estado / Clases ===== */
 function statusOf(code) {
   if (!code) return ''
-  if (props.currentSeat && code === props.currentSeat) return ''
-  const s = palcoMap.value[1]?.status?.[code]
-        || palcoMap.value[2]?.status?.[code]
-        || palcoMap.value[3]?.status?.[code]
-        || ''
-  return s
+  if (props.currentSeat && code === props.currentSeat) return '' // permitir elegir el propio
+  return (
+    palcoMap.value[1]?.status?.[code] ||
+    palcoMap.value[2]?.status?.[code] ||
+    palcoMap.value[3]?.status?.[code] ||
+    ''
+  )
 }
 function seatStatusClass(code) {
   const s = statusOf(code)
   if (s === 'present')  return 'present'
   if (s === 'assigned') return 'assigned'
-  return '' // libre
+  return ''
 }
 function isSeatDisabled(code) {
   if (!code) return true
   const s = statusOf(code)
-  if (!s) return false // libre
+  if (!s) return false
   if (s === 'assigned') return !props.allowAssigned && code !== props.currentSeat
   if (s === 'present')  return true
   return false
 }
 
+/* Auto-tab según dónde exista el asiento actual/seleccionado */
+watchEffect(() => {
+  const seat = (props.currentSeat || selectedSeatLocal.value || '').toUpperCase()
+  if (!seat) return
+  if (seatInPalco(2, seat)) activeTab.value = 'IZQ'
+  else if (seatInPalco(3, seat)) activeTab.value = 'DER'
+  else activeTab.value = 'P'
+})
+
 /* ===== Acciones ===== */
-function selectSeat(code) {
-  if (!code || isSeatDisabled(code)) return
-  selectedSeatLocal.value = code
-}
-function close() { internalOpen.value = false }
-async function confirm() {
+function selectSeat(code){ if (!isSeatDisabled(code)) selectedSeatLocal.value = code }
+function close(){ internalOpen.value = false }
+async function confirm(){
   if (!selectedSeatLocal.value) return
   busy.value = true
-  try {
+  try{
     emit('confirm', { seat: selectedSeatLocal.value })
     internalOpen.value = false
   } finally { busy.value = false }
@@ -313,48 +346,19 @@ async function confirm() {
 
 <style scoped>
 /* ===== Card / fondo oscuro dorado ===== */
-.card-contrast {
-  background: #0e1230 !important;
-  border: 1px solid rgba(255, 217, 81, .14);
-  box-shadow: 0 6px 18px rgba(0,0,0,.25);
-}
-.title-contrast {
-  background: linear-gradient(180deg, rgba(255,217,81,.06), rgba(11,13,40,0));
-  border-bottom: 1px solid rgba(255,217,81,.10);
-}
-.divider-contrast { border-color: rgba(255,217,81,.10) !important; }
-.text-dim { color: rgba(234,240,255, .75); }
-
-/* Botón tonito dorado (coincide con SeatMap.vue) */
-.btn-tonal {
-  background: rgba(255,217,81,.12) !important;
-  color: #ffd951 !important;
-  border: 1px solid rgba(255,217,81,.24) !important;
-}
+.card-contrast{ background:#0e1230 !important; border:1px solid rgba(255,217,81,.14); box-shadow:0 6px 18px rgba(0,0,0,.25); }
+.title-contrast{ background:linear-gradient(180deg, rgba(255,217,81,.06), rgba(11,13,40,0)); border-bottom:1px solid rgba(255,217,81,.10); }
+.divider-contrast{ border-color: rgba(255,217,81,.10) !important; }
+.text-dim{ color: rgba(234,240,255,.75); }
 
 /* ===== LEYENDA ===== */
-.chip-strong {
-  background: rgba(255,217,81,.12) !important;
-  color: #ffd951 !important;
-  border: 1px solid rgba(255,217,81,.24) !important;
-}
-.chip-presente {
-  background: rgba(76, 175, 80, .18) !important;
-  color: #9be89b !important;
-  border: 1px solid rgba(76, 175, 80, .35) !important;
-}
-.chip-asignado {
-  background: rgba(255, 152, 0, .18) !important;
-  color: #ffda9b !important;
-  border: 1px solid rgba(255, 152, 0, .35) !important;
-}
-.chip-outline {
-  color: #eaf0ff !important;
-  border-color: rgba(234,240,255,.35) !important;
-}
+.chip-strong{ background:rgba(255,217,81,.12) !important; color:#ffd951 !important; border:1px solid rgba(255,217,81,.24) !important; }
+.chip-presente{ background:rgba(76,175,80,.18) !important; color:#9be89b !important; border:1px solid rgba(76,175,80,.35) !important; }
+.chip-asignado{ background:rgba(255,152,0,.18) !important; color:#ffda9b !important; border:1px solid rgba(255,152,0,.35) !important; }
+.chip-outline{ color:#eaf0ff !important; border-color:rgba(234,240,255,.35) !important; }
 
 /* ===== TABS ===== */
-.palcos-tabs{ border-bottom: 1px solid rgba(255,217,81,.12); margin-bottom: 8px; }
+.palcos-tabs{ border-bottom:1px solid rgba(255,217,81,.12); margin-bottom:8px; }
 .tabs-compact{ overflow-x:auto; }
 .tab-compact{
   text-transform:none !important; font-weight:700 !important;
@@ -362,28 +366,28 @@ async function confirm() {
   min-width:92px !important; padding:0 10px !important; height:34px !important;
 }
 :deep(.v-tab.v-tab--selected){
-  background: rgba(255,217,81,.18) !important;
-  box-shadow: inset 0 0 6px rgba(255,217,81,.25);
+  background:rgba(255,217,81,.18) !important;
+  box-shadow:inset 0 0 6px rgba(255,217,81,.25);
   color:#fff3bf !important; opacity:1 !important; font-weight:800 !important;
 }
 
 /* ===== LAYOUT Y GRILLA ===== */
-.palco-block {
-  border: 1px dashed rgba(255,217,81,.15);
-  border-radius: 16px;
-  padding: 10px 12px 14px;
-  background: rgba(7,9,28,.35);
-}
+.palco-block{ border:1px dashed rgba(255,217,81,.15); border-radius:16px; padding:10px 12px 14px; background:rgba(7,9,28,.35); }
 .palco-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
 .palco-header-inner{ display:flex; align-items:center; font-weight:700; letter-spacing:.2px; }
 .palco-title{ font-weight:800; }
-.palco-footer{
-  margin-top:8px; border-top:1px dashed rgba(255,217,81,.12);
-  padding-top:8px; font-size:.85rem; opacity:.7; text-align:center;
-}
+.palco-footer{ margin-top:8px; border-top:1px dashed rgba(255,217,81,.12); padding-top:8px; font-size:.85rem; opacity:.7; text-align:center; }
 
 .grid-rows-wrap{ overflow:auto; }
-.grid-rows{ display:grid; gap:6px; width:100%; }
+
+/* ⬇️ Mostrar filas desde ABAJO hacia ARRIBA en todos los palcos */
+.grid-rows{
+  display:flex;
+  flex-direction: column-reverse;
+  gap:6px;
+  width:100%;
+}
+
 .row{
   display:grid; grid-auto-flow:column;
   grid-template-columns:38px repeat(auto-fit, minmax(54px, 1fr));
@@ -404,75 +408,51 @@ async function confirm() {
 .seat.assigned{ background:#ffb300 !important; color:#0b0d28 !important; }
 
 /* selección */
-.seat-selected{ outline: 2px solid #ffd951; box-shadow: 0 0 0 3px rgba(255,217,81,.18); }
+.seat-selected{ outline:2px solid #ffd951; box-shadow:0 0 0 3px rgba(255,217,81,.18); }
 
 /* PASILLO CENTRAL */
-.principal-split{ display:grid; grid-template-columns: 1fr 28px 1fr; align-items:start; gap: 8px; }
+.principal-split{ display:grid; grid-template-columns:1fr 28px 1fr; align-items:start; gap:8px; }
 .aisle-vert{
-  width: 100%; height: 100%; min-height: 100px;
-  border-left: 2px dashed rgba(255,217,81,.35);
-  border-right: 2px dashed rgba(255,217,81,.35);
-  border-radius: 6px;
+  width:100%; height:100%; min-height:100px;
+  border-left:2px dashed rgba(255,217,81,.35);
+  border-right:2px dashed rgba(255,217,81,.35);
+  border-radius:6px;
 }
 
 /* ===== Responsivo ===== */
-@media (max-width: 600px){
+@media (max-width:600px){
   .palcos-window .row{
-    grid-template-columns: 32px !important;
-    grid-auto-flow: column !important;
-    grid-auto-columns: 52px !important;
-    width: max-content !important;
+    grid-template-columns:32px !important;
+    grid-auto-flow:column !important;
+    grid-auto-columns:52px !important;
+    width:max-content !important;
   }
-  .palcos-window .seat.v-btn{
-    min-width: 52px !important;
-    width: 52px !important;
-  }
+  .palcos-window .seat.v-btn{ min-width:52px !important; width:52px !important; }
 }
 
 /* ===== Footer ===== */
-.picker-footer {
-  display: flex; justify-content: space-between; align-items: center;
-  background: rgba(15,18,45,.65); border-top: 1px solid rgba(255,217,81,.10);
-  padding: 12px 20px; border-radius: 0 0 18px 18px;
+.picker-footer{
+  display:flex; justify-content:space-between; align-items:center;
+  background:rgba(15,18,45,.65); border-top:1px solid rgba(255,217,81,.10);
+  padding:12px 20px; border-radius:0 0 18px 18px;
 }
-.picker-info { display: flex; align-items: center; gap: 8px; color: rgba(234,240,255,.8); font-size: 0.95rem; font-weight: 500; }
-.picker-label { display: flex; align-items: center; gap: 6px; }
-.picker-text { opacity: 0.85; font-weight: 400; }
-.picker-code { color: #ffd951; font-weight: 800; letter-spacing: .3px; }
-.picker-none { color: rgba(234,240,255,.5); font-style: italic; }
-.picker-actions { display: flex; gap: 10px; }
-.btn-cancel { color: rgba(234,240,255,.75) !important; border: 1px solid rgba(234,240,255,.25) !important; background: rgba(255,255,255,.03) !important; font-weight: 600 !important; text-transform: none !important; }
-.btn-cancel:hover { background: rgba(234,240,255,.08) !important; }
-.btn-confirm { background: #ffd951 !important; color: #0b0d28 !important; font-weight: 800 !important; text-transform: none !important; box-shadow: 0 0 10px rgba(255,217,81,.25); }
-.btn-confirm:hover { background: #ffe87a !important; }
-
-/* Footer: no cortar línea */
-.picker-footer{ flex-wrap: nowrap; }
-.picker-info{ flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
-.picker-label{ display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
-.picker-text{ white-space: nowrap; line-height: 1.1; }
-.picker-code{ white-space: nowrap; line-height: 1.1; }
-.picker-actions{ flex: 0 0 auto; }
-@media (max-width: 420px){
-  .picker-footer{ flex-wrap: wrap; row-gap: 8px; }
-  .picker-info{ flex: 1 1 100%; order: 1; }
-  .picker-actions{ order: 2; width: 100%; justify-content: flex-end; }
-}
+.picker-info{ display:flex; align-items:center; gap:8px; color:rgba(234,240,255,.8); font-size:.95rem; font-weight:500; }
+.picker-label{ display:flex; align-items:center; gap:6px; }
+.picker-text{ opacity:.85; font-weight:400; }
+.picker-code{ color:#ffd951; font-weight:800; letter-spacing:.3px; }
+.picker-none{ color:rgba(234,240,255,.5); font-style:italic; }
+.picker-actions{ display:flex; gap:10px; }
+.btn-cancel{ color:rgba(234,240,255,.75) !important; border:1px solid rgba(234,240,255,.25) !important; background:rgba(255,255,255,.03) !important; font-weight:600 !important; text-transform:none !important; }
+.btn-cancel:hover{ background:rgba(234,240,255,.08) !important; }
+.btn-confirm{ background:#ffd951 !important; color:#0b0d28 !important; font-weight:800 !important; text-transform:none !important; box-shadow:0 0 10px rgba(255,217,81,.25); }
+.btn-confirm:hover{ background:#ffe87a !important; }
 
 /* ===== HEADER ===== */
-.seatpicker-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.header-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.header-titles { display: flex; flex-direction: column; min-width: 0; }
-.header-main { font-size: 1.05rem; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px; }
-.header-person { color: #ffd951; font-weight: 700; margin-left: 4px; white-space: nowrap; }
-@media (max-width: 500px){ .header-main { max-width: 220px; font-size: 0.95rem; } }
-
-/* doble línea */
-.seatpicker-header { justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
-.header-left { align-items: flex-start; gap: 10px; flex: 1 1 auto; min-width: 0; }
-.header-titles { flex-direction: column; line-height: 1.25; min-width: 0; }
-.header-line1 { font-size: 1.05rem; font-weight: 600; color: #fff; white-space: nowrap; }
-.header-line2 { font-size: 0.95rem; font-weight: 700; color: #ffd951; white-space: normal; word-break: break-word; line-height: 1.2; margin-top: 2px; }
-.legend { flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
-@media (max-width: 500px) { .seatpicker-header { flex-direction: column; align-items: flex-start; } .legend { margin-top: 4px; } }
+.seatpicker-header{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.header-left{ display:flex; align-items:center; gap:10px; min-width:0; }
+.header-titles{ display:flex; flex-direction:column; min-width:0; }
+.header-line1{ font-size:1.05rem; font-weight:600; color:#fff; white-space:nowrap; }
+.header-line2{ font-size:.95rem; font-weight:700; color:#ffd951; white-space:normal; word-break:break-word; line-height:1.2; margin-top:2px; }
+.legend{ flex-shrink:0; display:flex; align-items:center; gap:6px; }
+@media (max-width:500px){ .seatpicker-header{ flex-direction:column; align-items:flex-start; } .legend{ margin-top:4px; } }
 </style>

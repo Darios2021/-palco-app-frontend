@@ -1,4 +1,5 @@
-<template>
+<!-- src/components/SeatMap.vue -->
+<template> 
   <!-- === MAPA 3 PALCOS / RESPONSIVE === -->
   <v-card rounded="xl" class="mb-6 card-contrast">
     <!-- HEADER -->
@@ -322,7 +323,7 @@
         <v-text-field
           v-model="q"
           prepend-inner-icon="mdi-magnify"
-          label="Buscar (nombre / cargo / organismo / asiento)"
+          label="Buscar (nombre / cargo / organismo / asiento / palco)"
           hide-details
           single-line
           density="comfortable"
@@ -365,6 +366,12 @@
         <template #item.seat="{ item }">
           <v-chip color="success" size="x-small" label class="font-weight-600 chip-table">
             {{ item.seat }}
+          </v-chip>
+        </template>
+
+        <template #item.palco="{ item }">
+          <v-chip size="x-small" label class="chip-outline">
+            {{ item.palco }}
           </v-chip>
         </template>
 
@@ -547,6 +554,13 @@ const palcoPrincipalMeta = computed(() => ({ id: 1, name: 'PALCO PRINCIPAL' }))
 const palcoIzqMeta       = computed(() => ({ id: 2, name: 'PALCO B' }))   // IZQ = G/H/I
 const palcoDerMeta       = computed(() => ({ id: 3, name: 'PALCO A' }))   // DER = J/K/L
 
+/* Helper nombre por id */
+const palcoNameById = (pid) => (
+  pid === 1 ? palcoPrincipalMeta.value.name :
+  pid === 2 ? palcoIzqMeta.value.name :
+  pid === 3 ? palcoDerMeta.value.name : '—'
+)
+
 /* ===== Orden PALCO PRINCIPAL (A/C/E vs B/D/F por paridad) ===== */
 const palcoPrincipalLeftRows = computed(() =>
   (palcoPrincipalRows.value || []).filter(r => (r.letter.charCodeAt(0) - 65) % 2 === 0)
@@ -558,6 +572,7 @@ const palcoPrincipalRightRows = computed(() =>
 /* ===== Tabla de presentes ===== */
 const headers = [
   { title: 'Asiento',   key: 'seat',      sortable: true },
+  { title: 'Palco',     key: 'palco',     sortable: true },
   { title: 'Nombre',    key: 'name',      sortable: true },
   { title: 'Cargo',     key: 'cargo',     sortable: true },
   { title: 'Organismo', key: 'org',       sortable: true },
@@ -577,6 +592,7 @@ const presentRowsByPalco = computed(() => {
     acc[pid].push({
       name: p.name,
       seat: code,
+      palco: palcoNameById(pid),
       org:  p.org ?? p.organismo ?? p.organization,
       cargo: p.cargo ?? p.role ?? p.position ?? p.cargoName ?? '',
       presentAt: p.presentAt
@@ -602,7 +618,7 @@ const filteredRows = computed(() => {
   const needle = q.value.trim().toLowerCase()
   if (!needle) return visibleRows.value
   return visibleRows.value.filter(r =>
-    [r.name, r.cargo, r.org, r.seat].filter(Boolean).join(' ').toLowerCase().includes(needle)
+    [r.name, r.cargo, r.org, r.seat, r.palco].filter(Boolean).join(' ').toLowerCase().includes(needle)
   )
 })
 
@@ -639,7 +655,7 @@ function formatDateTime (iso, compact = false) {
   } catch { return iso }
 }
 
-/* Export HTML */
+/* Export HTML (para imprimir/guardar como PDF desde el navegador) */
 function exportPDF () {
   const rows = filteredRows.value
   if (!rows.length) { alert('No hay datos para exportar.'); return }
@@ -652,6 +668,7 @@ function exportPDF () {
   const htmlRows = rows.map(r => (
     '<tr>' +
       '<td>' + (r.seat || '') + '</td>' +
+      '<td>' + (r.palco || '') + '</td>' +
       '<td>' + String(r.name || '').replace(/</g, '&lt;') + '</td>' +
       '<td>' + String(r.cargo || '') + '</td>' +
       '<td>' + String(r.org || '').replace(/</g, '&lt;') + '</td>' +
@@ -666,7 +683,7 @@ function exportPDF () {
     '</head><body>' +
     '<h1>Presentes en Palco</h1>' +
     '<h2 class="muted">Palco: ' + palcoName + ' · Generado: ' + new Date().toLocaleString('es-AR') + '</h2>' +
-    '<table><thead><tr><th>Asiento</th><th>Nombre</th><th>Cargo</th><th>Organismo</th><th>Ingreso</th></tr></thead><tbody>' +
+    '<table><thead><tr><th>Asiento</th><th>Palco</th><th>Nombre</th><th>Cargo</th><th>Organismo</th><th>Ingreso</th></tr></thead><tbody>' +
     htmlRows +
     '</tbody></table>' +
     '</body></html>'
@@ -682,7 +699,6 @@ function exportPDF () {
   URL.revokeObjectURL(url)
 }
 </script>
-
 
 <style scoped>
 /* ===== Card / fondo oscuro dorado ===== */
@@ -926,7 +942,3 @@ function exportPDF () {
   }
 }
 </style>
-
-
-
-
