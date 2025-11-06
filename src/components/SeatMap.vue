@@ -542,10 +542,10 @@ const palcoDerRowsBase = computed(() => (palcoMap.value[3]?.rows || []).filter(r
 const palcoIzqRows = computed(() => remapLetters(palcoIzqRowsBase.value, 'G'))
 const palcoDerRows = computed(() => remapLetters(palcoDerRowsBase.value, 'J'))
 
-/* ======= META ======= */
-const palcoPrincipalMeta = computed(() => ({ id: 1, name: palcoMap.value[1]?.name || 'PALCO PRINCIPAL' }))
-const palcoIzqMeta       = computed(() => ({ id: 2, name: palcoMap.value[2]?.name || 'PALCO IZQUIERDO' }))
-const palcoDerMeta       = computed(() => ({ id: 3, name: palcoMap.value[3]?.name || 'PALCO DERECHO' }))
+/* ======= META (forzamos nombres visibles consistentes) ======= */
+const palcoPrincipalMeta = computed(() => ({ id: 1, name: 'PALCO PRINCIPAL' }))
+const palcoIzqMeta       = computed(() => ({ id: 2, name: 'PALCO B' }))   // IZQ = G/H/I
+const palcoDerMeta       = computed(() => ({ id: 3, name: 'PALCO A' }))   // DER = J/K/L
 
 /* ===== Orden PALCO PRINCIPAL (A/C/E vs B/D/F por paridad) ===== */
 const palcoPrincipalLeftRows = computed(() =>

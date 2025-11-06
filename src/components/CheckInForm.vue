@@ -424,15 +424,20 @@ const snackbar = ref({ show:false, text:'', ok:true })
 /* ===== PALCO ===== */
 function inferPalcoFromSeat (seatCode) {
   if (!seatCode) return ''
+  // 1) Fuente de verdad: store (índice global)
+  const pid = seats.palcoIdBySeat?.(seatCode)
+  if (pid === 1) return 'Palco Principal'
+  if (pid === 2) return 'Palco B'   // IZQ
+  if (pid === 3) return 'Palco A'   // DER
+
+  // 2) Fallback por letras (por si el índice aún no está)
   const row = String(seatCode)[0]?.toUpperCase() || ''
-  const P = new Set(['A','B','C','D','E','F','G'])
-  const A = new Set(['H','I','J','K','L'])
-  const B = new Set(['M','N','O','P','Q'])
-  if (P.has(row)) return 'Palco Principal'
-  if (A.has(row)) return 'Palco A'
-  if (B.has(row)) return 'Palco B'
+  if ('ABCDEF'.includes(row)) return 'Palco Principal' // A–F
+  if ('GHI'.includes(row))    return 'Palco B'         // IZQ
+  if ('JKL'.includes(row))    return 'Palco A'         // DER
   return 'Palco Principal'
 }
+
 
 /* ===== HINT ===== */
 const hintWords = ['Nombre','Cargo','Organismo','Jerarquía']

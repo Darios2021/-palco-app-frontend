@@ -15,6 +15,10 @@ export const useSeatsStore = defineStore('seats', {
 
     _wired: false,         // evita duplicar suscripciones
     _loadedOnce: false,
+
+    // === Índice global asiento -> palcoId ===
+    _seatToPalco: {},      // { [seatCode]: 1|2|3 }
+    _indexBuilt: false,    // ya se construyó para todos los palcos
   }),
 
   getters: {
@@ -50,6 +54,23 @@ export const useSeatsStore = defineStore('seats', {
     statusOf() {
       return (code) => this.seatStatus(code)
     },
+
+    // === NEW: consulta de palco por asiento ===
+    palcoIdBySeat: (state) => (code) => state._seatToPalco?.[code] ?? null,
+    palcoNameById: (state) => (pid) => {
+      const found = state.palcos?.find(p => p.id === pid)
+      // Si del backend vienen "PALCO IZQUIERDO/DERECHO", podés remapear acá:
+      if (pid === 1) return found?.name || 'Palco Principal'
+      if (pid === 2) return 'Palco B'   // IZQUIERDO
+      if (pid === 3) return 'Palco A'   // DERECHO
+      return found?.name || ''
+    },
+    palcoNameBySeat () {
+      return (code) => {
+        const pid = this.palcoIdBySeat?.(code)
+        return this.palcoNameById?.(pid) || ''
+      }
+    },
   },
 
   actions: {
@@ -71,8 +92,8 @@ export const useSeatsStore = defineStore('seats', {
         'fetchAll',
         'createPerson',
         'updatePerson',
-        'markPresent',   // 👈 importante para CheckIn
-        'checkIn',       // por si existe con ese nombre en algún flujo
+        'markPresent',
+        'checkIn',
         'setPresent',
         'assignSeat',
         'unassignSeat',
@@ -84,6 +105,32 @@ export const useSeatsStore = defineStore('seats', {
       })
 
       this._wired = true
+    },
+
+    /* ===== Helpers índice asiento -> palco ===== */
+    _indexFromLayout(layout, pid) {
+      // layout: { seats: string[][] }
+      if (!layout?.seats) return
+      const map = { ...this._seatToPalco }
+      layout.seats.forEach(row => (row || []).forEach(code => {
+        if (code) map[code] = pid
+      }))
+      this._seatToPalco = map
+    },
+
+    async _buildSeatIndexAll() {
+      if (this._indexBuilt) return
+      // Asegura lista de palcos
+      if (!this.palcos.length) await this.fetchPalcos().catch(()=>{})
+      // Trae asientos de TODOS los palcos y arma índice
+      const ids = (this.palcos || []).map(p => p.id).filter(Boolean)
+      for (const id of ids) {
+        try {
+          const { data } = await api.get(`/palcos/${id}/seats`)
+          this._indexFromLayout(data, id)
+        } catch { /* ignore */ }
+      }
+      this._indexBuilt = true
     },
 
     /* ===== Carga/boot público y único ===== */
@@ -99,6 +146,9 @@ export const useSeatsStore = defineStore('seats', {
         // reflejar el global actual en el mapa local
         this._rebuildStatusFromPeople(usePeopleStore().list)
       }
+
+      // === NEW: construir índice global una sola vez
+      await this._buildSeatIndexAll().catch(()=>{})
 
       this._loadedOnce = true
     },
@@ -151,6 +201,9 @@ export const useSeatsStore = defineStore('seats', {
         const { data } = await api.get(`/palcos/${id}/seats`)
         this.mapa = data || null
         this.currentPalcoId = id
+
+        // alimentar índice con este layout también
+        this._indexFromLayout(this.mapa, id)
 
         // asegurar puente y refrescar status local/global
         this._ensureWired()
