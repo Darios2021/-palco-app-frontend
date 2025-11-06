@@ -32,8 +32,16 @@ export const useSeatsStore = defineStore('seats', {
       })
       return out
     },
-    /* estado por asiento – usa el mapa GLOBAL para soportar todos los palcos */
+
+    /* Estado por asiento – usa el mapa GLOBAL para soportar todos los palcos */
     seatStatus: (state) => (code) => state.statusAll?.[code] || 'free',
+
+    /* Holder por asiento – resuelve contra peopleStore */
+    seatHolder: () => (code) => {
+      const people = usePeopleStore()
+      return (people.list || []).find(p => p.seat === code) || null
+    },
+
     statusOf() {
       return (code) => this.seatStatus(code)
     },
@@ -66,6 +74,11 @@ export const useSeatsStore = defineStore('seats', {
       this._wired = true
     },
 
+    /* Exponer públicamente el wiring */
+    ensureWired() {
+      this._ensureWired()
+    },
+
     _rebuildStatusFromPeople(list) {
       // Construir mapa GLOBAL: asiento -> estado
       const nextAll = {}
@@ -73,8 +86,9 @@ export const useSeatsStore = defineStore('seats', {
         if (!p?.seat) continue
         nextAll[p.seat] = p.present ? 'present' : 'assigned'
       }
-      // reemplazo inmutable para disparar reactividad
-      this.statusAll = nextAll
+
+      // Reemplazo inmutable para disparar reactividad
+      this.statusAll = { ...nextAll }
 
       // Si hay mapa cargado, reflejar subset en mapa.status (opcional)
       if (this.mapa?.seats) {
