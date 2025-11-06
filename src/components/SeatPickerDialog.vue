@@ -3,22 +3,21 @@
   <v-dialog v-model="internalOpen" max-width="1100" scrollable>
     <v-card rounded="xl" class="card-contrast">
       <!-- HEADER -->
-<v-card-title class="title-contrast seatpicker-header">
-  <div class="header-left">
-    <v-icon class="mr-2">mdi-seat</v-icon>
-    <div class="header-titles">
-      <div class="header-line1">Seleccionar asiento</div>
-      <div v-if="personName" class="header-line2">{{ personName }}</div>
-    </div>
-  </div>
+      <v-card-title class="title-contrast seatpicker-header">
+        <div class="header-left">
+          <v-icon class="mr-2">mdi-seat</v-icon>
+          <div class="header-titles">
+            <div class="header-line1">Seleccionar asiento</div>
+            <div v-if="personName" class="header-line2">{{ personName }}</div>
+          </div>
+        </div>
 
-  <div class="legend d-flex align-center gap-2">
-    <v-chip label size="small" class="chip-strong chip-presente">Presente</v-chip>
-    <v-chip label size="small" class="chip-strong chip-asignado">Asignado</v-chip>
-    <v-chip variant="outlined" label size="small" class="chip-outline">Libre</v-chip>
-  </div>
-</v-card-title>
-
+        <div class="legend d-flex align-center gap-2">
+          <v-chip label size="small" class="chip-strong chip-presente">Presente</v-chip>
+          <v-chip label size="small" class="chip-strong chip-asignado">Asignado</v-chip>
+          <v-chip variant="outlined" label size="small" class="chip-outline">Libre</v-chip>
+        </div>
+      </v-card-title>
 
       <v-card-text>
         <div v-if="globalLoading" class="py-6 text-center text-dim">
@@ -34,7 +33,7 @@
             <v-tab value="DER" class="tab-compact">DER</v-tab>
           </v-tabs>
 
-<v-window v-model="activeTab" class="palcos-window" :touch="false">
+          <v-window v-model="activeTab" class="palcos-window" :touch="false">
             <!-- === TAB IZQ === -->
             <v-window-item value="IZQ" class="palco-window-item">
               <section class="palco-block">
@@ -168,22 +167,21 @@
       <v-divider class="divider-contrast" />
 
       <!-- FOOTER -->
-<v-card-actions class="picker-footer">
-  <div class="picker-info">
-    <v-icon size="18" class="mr-2">mdi-information-outline</v-icon>
-    <div class="picker-label">
-      <span class="picker-text">Asiento seleccionado:</span>
-      <strong v-if="selectedSeatLocal" class="picker-code">{{ selectedSeatLocal }}</strong>
-      <span v-else class="picker-none">Ninguno</span>
-    </div>
-  </div>
+      <v-card-actions class="picker-footer">
+        <div class="picker-info">
+          <v-icon size="18" class="mr-2">mdi-information-outline</v-icon>
+          <div class="picker-label">
+            <span class="picker-text">Asiento seleccionado:</span>
+            <strong v-if="selectedSeatLocal" class="picker-code">{{ selectedSeatLocal }}</strong>
+            <span v-else class="picker-none">Ninguno</span>
+          </div>
+        </div>
 
-  <div class="picker-actions">
-    <v-btn variant="outlined" class="btn-cancel" :disabled="busy" @click="close">Cancelar</v-btn>
-    <v-btn class="btn-confirm" :disabled="!selectedSeatLocal || busy" :loading="busy" @click="confirm">Confirmar</v-btn>
-  </div>
-</v-card-actions>
-
+        <div class="picker-actions">
+          <v-btn variant="outlined" class="btn-cancel" :disabled="busy" @click="close">Cancelar</v-btn>
+          <v-btn class="btn-confirm" :disabled="!selectedSeatLocal || busy" :loading="busy" @click="confirm">Confirmar</v-btn>
+        </div>
+      </v-card-actions>
     </v-card>
   </v-dialog>
 </template>
@@ -224,14 +222,17 @@ const palcoMap = ref({
 })
 
 function letterFor(index) { return String.fromCharCode('A'.charCodeAt(0) + index) }
+
+/* Mantengo el filtro de filas vacías */
 function transformSeatsResponse(data) {
-  // data: { palcoId, name, seats: string[][], status: { CODE: 'present'|'assigned' } }
   const seats = Array.isArray(data?.seats) ? data.seats : []
   const status = data?.status || {}
-  const rowsOut = seats.map((rowArr, idx) => ({
-    letter: letterFor(idx),
-    codes: (rowArr || []).filter(Boolean),
-  }))
+  const rowsOut = seats
+    .map((rowArr, idx) => {
+      const codes = (rowArr || []).filter(code => code && typeof code === 'string')
+      return codes.length ? { letter: letterFor(idx), codes } : null
+    })
+    .filter(Boolean)
   return { id: data.palcoId, name: data.name, rows: rowsOut, status }
 }
 
@@ -247,15 +248,21 @@ async function loadAll() {
 onMounted(loadAll)
 
 /* ===== Computed (mismo layout) ===== */
-const palcoPrincipalRows  = computed(() => palcoMap.value[1]?.rows || [])
-const palcoIzqRows        = computed(() => palcoMap.value[2]?.rows || [])
-const palcoDerRows        = computed(() => palcoMap.value[3]?.rows || [])
+const ALLOWED_PRINCIPAL_LETTERS = new Set(['A','B','C','D','E','F'])
+
+const palcoPrincipalRows  = computed(() =>
+  (palcoMap.value[1]?.rows || [])
+    .filter(r => r?.codes?.length)
+    .filter(r => ALLOWED_PRINCIPAL_LETTERS.has(r.letter))   // ⛔ excluye G
+)
+const palcoIzqRows        = computed(() => (palcoMap.value[2]?.rows || []).filter(r => r?.codes?.length))
+const palcoDerRows        = computed(() => (palcoMap.value[3]?.rows || []).filter(r => r?.codes?.length))
+
 const palcoPrincipalMeta  = computed(() => ({ id: 1, name: palcoMap.value[1]?.name || 'PALCO PRINCIPAL' }))
 const palcoIzqMeta        = computed(() => ({ id: 2, name: palcoMap.value[2]?.name || 'PALCO IZQUIERDO' }))
 const palcoDerMeta        = computed(() => ({ id: 3, name: palcoMap.value[3]?.name || 'PALCO DERECHO' }))
 
-/* Partimos filas del principal en dos columnas para el pasillo, imitando SeatMap.vue:
-   A/C/E a la izquierda y B/D/F a la derecha (por letra par/impar) */
+/* Partimos filas del principal en dos columnas para el pasillo (A/C/E y B/D/F) */
 const palcoPrincipalLeftRows = computed(() =>
   (palcoPrincipalRows.value || []).filter(r => (r.letter.charCodeAt(0) - 65) % 2 === 0)
 )
@@ -263,10 +270,9 @@ const palcoPrincipalRightRows = computed(() =>
   (palcoPrincipalRows.value || []).filter(r => (r.letter.charCodeAt(0) - 65) % 2 === 1)
 )
 
-/* ===== Estados / Clases (idéntico naming) ===== */
+/* ===== Estados / Clases ===== */
 function statusOf(code) {
   if (!code) return ''
-  // si el asiento es el actual, lo mostramos libre/selectable
   if (props.currentSeat && code === props.currentSeat) return ''
   const s = palcoMap.value[1]?.status?.[code]
         || palcoMap.value[2]?.status?.[code]
@@ -348,10 +354,7 @@ async function confirm() {
 }
 
 /* ===== TABS ===== */
-.palcos-tabs{
-  border-bottom: 1px solid rgba(255,217,81,.12);
-  margin-bottom: 8px;
-}
+.palcos-tabs{ border-bottom: 1px solid rgba(255,217,81,.12); margin-bottom: 8px; }
 .tabs-compact{ overflow-x:auto; }
 .tab-compact{
   text-transform:none !important; font-weight:700 !important;
@@ -371,9 +374,7 @@ async function confirm() {
   padding: 10px 12px 14px;
   background: rgba(7,9,28,.35);
 }
-.palco-header{
-  display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;
-}
+.palco-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
 .palco-header-inner{ display:flex; align-items:center; font-weight:700; letter-spacing:.2px; }
 .palco-title{ font-weight:800; }
 .palco-footer{
@@ -402,12 +403,10 @@ async function confirm() {
 .seat.present{ background:#4caf50 !important; color:#fff !important; }
 .seat.assigned{ background:#ffb300 !important; color:#0b0d28 !important; }
 
-/* (opcional) marca selección dentro del mismo estilo */
-.seat-selected{
-  outline: 2px solid #ffd951; box-shadow: 0 0 0 3px rgba(255,217,81,.18);
-}
+/* selección */
+.seat-selected{ outline: 2px solid #ffd951; box-shadow: 0 0 0 3px rgba(255,217,81,.18); }
 
-/* PASILLO CENTRAL PRINCIPAL (split vertical) */
+/* PASILLO CENTRAL */
 .principal-split{ display:grid; grid-template-columns: 1fr 28px 1fr; align-items:start; gap: 8px; }
 .aisle-vert{
   width: 100%; height: 100%; min-height: 100px;
@@ -416,9 +415,8 @@ async function confirm() {
   border-radius: 6px;
 }
 
-/* ===== Responsivo: en tabs mostramos filas como carrusel ancho ===== */
+/* ===== Responsivo ===== */
 @media (max-width: 600px){
-  /* refuerzos dentro de tabs/window */
   .palcos-window .row{
     grid-template-columns: 32px !important;
     grid-auto-flow: column !important;
@@ -431,222 +429,50 @@ async function confirm() {
   }
 }
 
-
-/* ===== Footer Selector Mejorado ===== */
+/* ===== Footer ===== */
 .picker-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: rgba(15,18,45,.65);
-  border-top: 1px solid rgba(255,217,81,.10);
-  padding: 12px 20px;
-  border-radius: 0 0 18px 18px;
+  display: flex; justify-content: space-between; align-items: center;
+  background: rgba(15,18,45,.65); border-top: 1px solid rgba(255,217,81,.10);
+  padding: 12px 20px; border-radius: 0 0 18px 18px;
 }
+.picker-info { display: flex; align-items: center; gap: 8px; color: rgba(234,240,255,.8); font-size: 0.95rem; font-weight: 500; }
+.picker-label { display: flex; align-items: center; gap: 6px; }
+.picker-text { opacity: 0.85; font-weight: 400; }
+.picker-code { color: #ffd951; font-weight: 800; letter-spacing: .3px; }
+.picker-none { color: rgba(234,240,255,.5); font-style: italic; }
+.picker-actions { display: flex; gap: 10px; }
+.btn-cancel { color: rgba(234,240,255,.75) !important; border: 1px solid rgba(234,240,255,.25) !important; background: rgba(255,255,255,.03) !important; font-weight: 600 !important; text-transform: none !important; }
+.btn-cancel:hover { background: rgba(234,240,255,.08) !important; }
+.btn-confirm { background: #ffd951 !important; color: #0b0d28 !important; font-weight: 800 !important; text-transform: none !important; box-shadow: 0 0 10px rgba(255,217,81,.25); }
+.btn-confirm:hover { background: #ffe87a !important; }
 
-.picker-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: rgba(234,240,255,.8);
-  font-size: 0.95rem;
-  font-weight: 500;
-}
-
-.picker-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.picker-text {
-  opacity: 0.85;
-  font-weight: 400;
-}
-
-.picker-code {
-  color: #ffd951;
-  font-weight: 800;
-  letter-spacing: .3px;
-}
-
-.picker-none {
-  color: rgba(234,240,255,.5);
-  font-style: italic;
-}
-
-.picker-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.btn-cancel {
-  color: rgba(234,240,255,.75) !important;
-  border: 1px solid rgba(234,240,255,.25) !important;
-  background: rgba(255,255,255,.03) !important;
-  font-weight: 600 !important;
-  text-transform: none !important;
-}
-
-.btn-cancel:hover {
-  background: rgba(234,240,255,.08) !important;
-}
-
-.btn-confirm {
-  background: #ffd951 !important;
-  color: #0b0d28 !important;
-  font-weight: 800 !important;
-  text-transform: none !important;
-  box-shadow: 0 0 10px rgba(255,217,81,.25);
-}
-
-.btn-confirm:hover {
-  background: #ffe87a !important;
-}
-
-
-/* ==== Fix: Footer texto en una sola línea, sin cortes ==== */
-.picker-footer{
-  flex-wrap: nowrap;
-}
-
-.picker-info{
-  flex: 1 1 auto;            /* ocupa el espacio disponible */
-  min-width: 0;              /* permite encoger sin romper */
-  display: flex;
-  align-items: baseline;     /* alinea “Asiento” y el código por la línea base */
-  gap: 8px;
-}
-
-.picker-label{
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  white-space: nowrap;       /* evita el salto de línea */
-}
-
-.picker-text{
-  white-space: nowrap;
-  line-height: 1.1;
-}
-
-.picker-code{
-  white-space: nowrap;
-  line-height: 1.1;
-}
-
-/* Botonera: que no empuje el texto a la 2da línea */
-.picker-actions{
-  flex: 0 0 auto;
-}
-
-/* Opcional: en pantallas muy angostas, apilamos prolijo */
+/* Footer: no cortar línea */
+.picker-footer{ flex-wrap: nowrap; }
+.picker-info{ flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
+.picker-label{ display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.picker-text{ white-space: nowrap; line-height: 1.1; }
+.picker-code{ white-space: nowrap; line-height: 1.1; }
+.picker-actions{ flex: 0 0 auto; }
 @media (max-width: 420px){
   .picker-footer{ flex-wrap: wrap; row-gap: 8px; }
   .picker-info{ flex: 1 1 100%; order: 1; }
   .picker-actions{ order: 2; width: 100%; justify-content: flex-end; }
 }
 
-/* ===== HEADER SEAT PICKER ===== */
-.seatpicker-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
+/* ===== HEADER ===== */
+.seatpicker-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.header-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.header-titles { display: flex; flex-direction: column; min-width: 0; }
+.header-main { font-size: 1.05rem; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px; }
+.header-person { color: #ffd951; font-weight: 700; margin-left: 4px; white-space: nowrap; }
+@media (max-width: 500px){ .header-main { max-width: 220px; font-size: 0.95rem; } }
 
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0; /* evita overflow */
-}
-
-.header-titles {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.header-main {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 360px; /* controla el truncamiento elegante */
-}
-
-.header-person {
-  color: #ffd951;
-  font-weight: 700;
-  margin-left: 4px;
-  white-space: nowrap;
-}
-
-/* responsive */
-@media (max-width: 500px){
-  .header-main { max-width: 220px; font-size: 0.95rem; }
-}
-
-/* ===== HEADER SEAT PICKER (doble línea) ===== */
-.seatpicker-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.header-left {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.header-titles {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.25;
-  min-width: 0;
-}
-
-.header-line1 {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: #fff;
-  white-space: nowrap;
-}
-
-.header-line2 {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #ffd951;
-  white-space: normal;
-  word-break: break-word;
-  line-height: 1.2;
-  margin-top: 2px;
-}
-
-.legend {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* responsive */
-@media (max-width: 500px) {
-  .seatpicker-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .legend {
-    margin-top: 4px;
-  }
-}
-
+/* doble línea */
+.seatpicker-header { justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
+.header-left { align-items: flex-start; gap: 10px; flex: 1 1 auto; min-width: 0; }
+.header-titles { flex-direction: column; line-height: 1.25; min-width: 0; }
+.header-line1 { font-size: 1.05rem; font-weight: 600; color: #fff; white-space: nowrap; }
+.header-line2 { font-size: 0.95rem; font-weight: 700; color: #ffd951; white-space: normal; word-break: break-word; line-height: 1.2; margin-top: 2px; }
+.legend { flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
+@media (max-width: 500px) { .seatpicker-header { flex-direction: column; align-items: flex-start; } .legend { margin-top: 4px; } }
 </style>

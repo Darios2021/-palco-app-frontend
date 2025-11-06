@@ -57,7 +57,7 @@
                 <footer class="palco-footer">Sector lateral izquierdo (4×4)</footer>
               </section>
 
-              <!-- PALCO PRINCIPAL (solo grilla con pasillo central) -->
+              <!-- PALCO PRINCIPAL (grilla con pasillo central) -->
               <section class="palco-block palco-principal">
                 <header class="palco-header">
                   <div class="palco-header-inner">
@@ -68,7 +68,7 @@
 
                 <div class="palco-body main-palco-body">
                   <div class="principal-split">
-                    <!-- IZQUIERDA: A, C, E -->
+                    <!-- IZQUIERDA: E, C, A (de arriba a abajo) -->
                     <div class="grid-rows-wrap">
                       <div class="grid-rows">
                         <div v-for="(row, rIdx) in palcoPrincipalLeftRows" :key="'P-L-'+rIdx" class="row">
@@ -88,7 +88,7 @@
 
                     <div class="aisle-vert" aria-hidden="true"></div>
 
-                    <!-- DERECHA: B, D, F -->
+                    <!-- DERECHA: F, D, B (de arriba a abajo) -->
                     <div class="grid-rows-wrap">
                       <div class="grid-rows">
                         <div v-for="(row, rIdx) in palcoPrincipalRightRows" :key="'P-R-'+rIdx" class="row">
@@ -207,6 +207,7 @@
 
                   <div class="palco-body main-palco-body">
                     <div class="principal-split">
+                      <!-- IZQUIERDA: E, C, A -->
                       <div class="grid-rows-wrap">
                         <div class="grid-rows">
                           <div v-for="(row, rIdx) in palcoPrincipalLeftRows" :key="'P-L-m-'+rIdx" class="row">
@@ -226,6 +227,7 @@
 
                       <div class="aisle-vert" aria-hidden="true"></div>
 
+                      <!-- DERECHA: F, D, B -->
                       <div class="grid-rows-wrap">
                         <div class="grid-rows">
                           <div v-for="(row, rIdx) in palcoPrincipalRightRows" :key="'P-R-m-'+rIdx" class="row">
@@ -492,9 +494,11 @@ const palcoDerMeta = computed(() => ({
   name: palcoMap.value[3]?.name || 'PALCO DERECHO',
 }))
 
-/* Principal: grupos por letras (A,C,E) izquierda | (B,D,F) derecha */
-const LETTERS_LEFT  = ['A','C','E']
-const LETTERS_RIGHT = ['B','D','F']
+/* ===== PALCO PRINCIPAL: orden solicitado =====
+   Izquierda (ARRIBA→ABAJO): E, C, A
+   Derecha   (ARRIBA→ABAJO): F, D, B                                   */
+const LETTERS_LEFT  = ['E','C','A']
+const LETTERS_RIGHT = ['F','D','B']
 
 const palcoPrincipalLeftRows = computed(() => {
   const rows = palcoPrincipalRows.value || []
@@ -680,7 +684,8 @@ function exportPDF () {
   overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;
 }
 .palcos-layout{
-  display:grid; grid-template-columns:1fr 2fr 1fr; gap:24px; width:100%; max-width:100%;
+  /* Laterales más angostos, principal más ancho */
+  display:grid; grid-template-columns:0.8fr 2.4fr 0.8fr; gap:24px; width:100%; max-width:100%;
 }
 
 /* Bloques */
@@ -707,7 +712,23 @@ function exportPDF () {
   text-align:center; text-transform:uppercase; letter-spacing:.05em;
 }
 
-/* GRID FILAS + ASIENTOS (desktop) */
+/* ===== Miniatura en PALCOS LATERALES ===== */
+.palco-lateral .palco-header{ padding: 9px 12px; font-size:.75rem; }
+.palco-lateral .main-palco-body{ padding: 0 12px 12px; }
+.palco-lateral .palco-footer{ padding:6px 12px 10px; font-size:.65rem; }
+.palco-lateral .grid-rows{ gap:10px; min-width:max(340px,100%); }
+.palco-lateral .row{
+  grid-template-columns:32px repeat(auto-fit, minmax(46px, 1fr));
+  gap:6px;
+}
+.palco-lateral .row-label{
+  width:32px; padding:4px 0; font-size:.7rem;
+}
+.palco-lateral .seat{
+  min-width:46px; height:28px; border-radius:14px; font-size:.68rem;
+}
+
+/* GRID FILAS + ASIENTOS (desktop, por defecto) */
 .grid-rows-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:6px; }
 .grid-rows{ display:flex; flex-direction:column-reverse; gap:12px; min-width:max(480px,100%); }
 .row{
@@ -757,11 +778,10 @@ function exportPDF () {
   color: #ffd951 !important;
 }
 
-/* ===== MOBILE: filas SIEMPRE horizontales con scroll ===== */
+/* ===== MOBILE: igual que antes ===== */
 @media (max-width: 900px){
   .legend :deep(.v-chip){ height:20px; font-size:11px; }
 
-  /* contenedor de filas con scroll lateral */
   .grid-rows-wrap{
     overflow-x: auto !important;
     overflow-y: hidden !important;
@@ -769,24 +789,22 @@ function exportPDF () {
     padding-bottom: 6px;
   }
 
-  /* apilar filas verticalmente */
   .grid-rows{
     display: flex !important;
-    flex-direction: column !important; /* usá column-reverse si querés invertir */
+    flex-direction: column !important;
     gap: 10px !important;
     min-width: 100% !important;
     overflow: visible !important;
   }
 
-  /* cada fila = cinta horizontal; ocupa el ancho de su contenido */
   .row{
     display: grid !important;
-    grid-template-columns: 32px !important;  /* etiqueta */
-    grid-auto-flow: column !important;       /* columnas hacia la derecha */
-    grid-auto-columns: 52px !important;      /* ancho fijo por asiento */
+    grid-template-columns: 32px !important;
+    grid-auto-flow: column !important;
+    grid-auto-columns: 52px !important;
     align-items: center !important;
     gap: 6px !important;
-    width: max-content !important;           /* <— clave para que no se parta */
+    width: max-content !important;
   }
 
   .row-label{
@@ -795,7 +813,6 @@ function exportPDF () {
     width: 32px !important; padding: 4px 0 !important; font-size:.7rem !important;
   }
 
-  /* override del min-width de Vuetify en los botones */
   .seat.v-btn{
     min-width: 52px !important;
     width: 52px !important;
@@ -805,7 +822,6 @@ function exportPDF () {
     padding: 0 6px !important;
   }
 
-  /* principal en mobile: apilado (izq / pasillo / der) */
   .principal-split{ grid-template-columns: 1fr !important; }
   .aisle-vert{
     height: 18px !important; min-height: 18px !important;
@@ -814,7 +830,6 @@ function exportPDF () {
     border-bottom: 2px dashed rgba(255,217,81,.35) !important;
   }
 
-  /* refuerzos dentro de tabs/window */
   .palcos-window .row{
     grid-template-columns: 32px !important;
     grid-auto-flow: column !important;
@@ -827,4 +842,3 @@ function exportPDF () {
   }
 }
 </style>
-
