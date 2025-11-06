@@ -68,7 +68,7 @@
 
                 <div class="palco-body main-palco-body">
                   <div class="principal-split">
-                    <!-- IZQUIERDA: E, C, A -->
+                    <!-- IZQUIERDA: A/C/E -->
                     <div class="grid-rows-wrap">
                       <div class="grid-rows">
                         <div v-for="(row, rIdx) in palcoPrincipalLeftRows" :key="'P-L-'+rIdx" class="row">
@@ -88,7 +88,7 @@
 
                     <div class="aisle-vert" aria-hidden="true"></div>
 
-                    <!-- DERECHA: F, D, B -->
+                    <!-- DERECHA: B/D/F -->
                     <div class="grid-rows-wrap">
                       <div class="grid-rows">
                         <div v-for="(row, rIdx) in palcoPrincipalRightRows" :key="'P-R-'+rIdx" class="row">
@@ -145,7 +145,7 @@
           </div>
         </template>
 
-        <!-- MOBILE (tabs únicas) -->
+        <!-- MOBILE (tabs con el MISMO look del SeatPickerDialog) -->
         <template v-else>
           <div class="palcos-tabs-wrap">
             <v-tabs
@@ -161,10 +161,11 @@
               <v-tab value="DER" class="tab-compact">DER</v-tab>
             </v-tabs>
 
+            <!-- ⛔ Sin swipe para no chocar con scroll horizontal -->
             <v-window v-model="activeTab" class="palcos-window" :touch="false">
               <!-- IZQ -->
               <v-window-item value="IZQ" class="palco-window-item">
-                <section class="palco-block palco-lateral">
+                <section class="palco-block">
                   <header class="palco-header">
                     <div class="palco-header-inner">
                       <v-icon size="18" class="mr-1">mdi-seat</v-icon>
@@ -172,7 +173,7 @@
                     </div>
                   </header>
 
-                  <div class="palco-body main-palco-body">
+                  <div class="palco-body">
                     <div class="grid-rows-wrap">
                       <div class="grid-rows">
                         <div v-for="(row, rIdx) in palcoIzqRows" :key="'IZQ-m-'+rIdx" class="row">
@@ -207,7 +208,7 @@
 
                   <div class="palco-body main-palco-body">
                     <div class="principal-split">
-                      <!-- IZQ: E,C,A -->
+                      <!-- IZQ: A/C/E -->
                       <div class="grid-rows-wrap">
                         <div class="grid-rows">
                           <div v-for="(row, rIdx) in palcoPrincipalLeftRows" :key="'P-L-m-'+rIdx" class="row">
@@ -227,7 +228,7 @@
 
                       <div class="aisle-vert" aria-hidden="true"></div>
 
-                      <!-- DER: F,D,B -->
+                      <!-- DER: B/D/F -->
                       <div class="grid-rows-wrap">
                         <div class="grid-rows">
                           <div v-for="(row, rIdx) in palcoPrincipalRightRows" :key="'P-R-m-'+rIdx" class="row">
@@ -253,7 +254,7 @@
 
               <!-- DER -->
               <v-window-item value="DER" class="palco-window-item">
-                <section class="palco-block palco-lateral">
+                <section class="palco-block">
                   <header class="palco-header">
                     <div class="palco-header-inner">
                       <v-icon size="18" class="mr-1">mdi-seat-outline</v-icon>
@@ -261,7 +262,7 @@
                     </div>
                   </header>
 
-                  <div class="palco-body main-palco-body">
+                  <div class="palco-body">
                     <div class="grid-rows-wrap">
                       <div class="grid-rows">
                         <div v-for="(row, rIdx) in palcoDerRows" :key="'DER-m-'+rIdx" class="row">
@@ -432,6 +433,9 @@ const { smAndDown: smForTable } = useDisplay()
 const seats = useSeatsStore()
 const people = usePeopleStore()
 
+/* ===== Helpers ===== */
+function letterFor(index) { return String.fromCharCode('A'.charCodeAt(0) + index) }
+
 /* ===== Palcos (layout) ===== */
 const palcoMap = ref({
   1: { id: 1, name: 'PALCO PRINCIPAL', rows: [] },
@@ -442,11 +446,15 @@ const palcoMap = ref({
 const globalLoading = ref(true)
 const activeTab = ref('P') // IZQ | P | DER
 
+/* Igual que en SeatPicker: filtra filas vacías y numera por índice */
 function transformSeatsResponse (data) {
-  const rowsOut = (data.seats || []).map(arr => ({
-    letter: arr[0]?.charAt(0) || '?',
-    codes: arr
-  }))
+  const seatsArr = Array.isArray(data?.seats) ? data.seats : []
+  const rowsOut = seatsArr
+    .map((rowArr, idx) => {
+      const codes = (rowArr || []).filter(code => code && typeof code === 'string')
+      return codes.length ? { letter: letterFor(idx), codes } : null
+    })
+    .filter(Boolean)
   return { id: data.palcoId, name: data.name, rows: rowsOut }
 }
 
@@ -472,27 +480,24 @@ let unActionPeople = null
 let autoPull = null
 
 onMounted(async () => {
-  // 1) wiring + datos base
   await seats.ensureLoaded().catch(() => {})
 
-  // 2) layout de palcos
   await Promise.all([loadPalco(1), loadPalco(2), loadPalco(3)])
   rebuildSeatToPalco()
   globalLoading.value = false
 
-  // 3) suscripción reactiva: si cambia people.list, refresca statusAll (por redundancia)
+  // suscripción reactiva: si cambia people.list, refresca status
   unsubscribePeople = people.$subscribe(() => {
     seats._rebuildStatusFromPeople(people.list)
   }, { detached: true })
 
-  // 4) escucha acciones clave del peopleStore
   const touch = new Set(['markPresent', 'updatePerson', 'createPerson', 'fetchAll'])
   unActionPeople = people.$onAction(({ name, after }) => {
     if (!touch.has(name)) return
     after(() => seats._rebuildStatusFromPeople(people.list))
   })
 
-  // 5) auto-pull cada 15 s (sincronización backend multiusuario)
+  // auto-pull cada 15 s (multiusuario)
   autoPull = setInterval(() => people.fetchAll().catch(()=>{}), 15000)
 })
 
@@ -503,32 +508,28 @@ onBeforeUnmount(() => {
 })
 
 /* ===== Computed filas ===== */
-const palcoPrincipalRows = computed(() => palcoMap.value[1]?.rows || [])
-const palcoIzqRows       = computed(() => palcoMap.value[2]?.rows || [])
-const palcoDerRows       = computed(() => palcoMap.value[3]?.rows || [])
+const ALLOWED_PRINCIPAL_LETTERS = new Set(['A','B','C','D','E','F'])
+
+const palcoPrincipalRows = computed(() =>
+  (palcoMap.value[1]?.rows || [])
+    .filter(r => r?.codes?.length)
+    .filter(r => ALLOWED_PRINCIPAL_LETTERS.has(r.letter))  // ⛔ excluye G
+)
+const palcoIzqRows       = computed(() => (palcoMap.value[2]?.rows || []).filter(r => r?.codes?.length))
+const palcoDerRows       = computed(() => (palcoMap.value[3]?.rows || []).filter(r => r?.codes?.length))
 
 /* ======= META ======= */
 const palcoPrincipalMeta = computed(() => ({ id: 1, name: palcoMap.value[1]?.name || 'PALCO PRINCIPAL' }))
 const palcoIzqMeta       = computed(() => ({ id: 2, name: palcoMap.value[2]?.name || 'PALCO IZQUIERDO' }))
 const palcoDerMeta       = computed(() => ({ id: 3, name: palcoMap.value[3]?.name || 'PALCO DERECHO' }))
 
-/* ===== Orden PALCO PRINCIPAL ===== */
-const LETTERS_LEFT  = ['E','C','A']
-const LETTERS_RIGHT = ['F','D','B']
-
-const palcoPrincipalLeftRows = computed(() => {
-  const rows = palcoPrincipalRows.value || []
-  return rows
-    .filter(r => LETTERS_LEFT.includes((r.letter || '').toUpperCase()))
-    .sort((a,b) => LETTERS_LEFT.indexOf(a.letter.toUpperCase()) - LETTERS_LEFT.indexOf(b.letter.toUpperCase()))
-})
-
-const palcoPrincipalRightRows = computed(() => {
-  const rows = palcoPrincipalRows.value || []
-  return rows
-    .filter(r => LETTERS_RIGHT.includes((r.letter || '').toUpperCase()))
-    .sort((a,b) => LETTERS_RIGHT.indexOf(a.letter.toUpperCase()) - LETTERS_RIGHT.indexOf(b.letter.toUpperCase()))
-})
+/* ===== Orden PALCO PRINCIPAL (A/C/E vs B/D/F por paridad) ===== */
+const palcoPrincipalLeftRows = computed(() =>
+  (palcoPrincipalRows.value || []).filter(r => (r.letter.charCodeAt(0) - 65) % 2 === 0)
+)
+const palcoPrincipalRightRows = computed(() =>
+  (palcoPrincipalRows.value || []).filter(r => (r.letter.charCodeAt(0) - 65) % 2 === 1)
+)
 
 /* ===== Tabla de presentes ===== */
 const headers = [
@@ -651,8 +652,6 @@ function exportPDF () {
   URL.revokeObjectURL(url)
 }
 </script>
-
-
 <style scoped>
 /* ===== Card / fondo oscuro dorado ===== */
 .card-contrast {
@@ -680,8 +679,23 @@ function exportPDF () {
 }
 .btn-icon :deep(.v-icon){ font-size:20px !important; }
 
-/* Chips */
-.chip-strong { font-weight: 700; color: #0b0d28 !important; }
+/* ===== LEYENDA / Chips ===== */
+.chip-strong {
+  background: rgba(255,217,81,.12) !important;
+  color: #ffd951 !important;
+  border: 1px solid rgba(255,217,81,.24) !important;
+  font-weight: 700 !important;
+}
+.chip-presente {
+  background: rgba(76, 175, 80, .18) !important;
+  color: #9be89b !important;
+  border: 1px solid rgba(76, 175, 80, .35) !important;
+}
+.chip-asignado {
+  background: rgba(255, 152, 0, .18) !important;
+  color: #ffda9b !important;
+  border: 1px solid rgba(255, 152, 0, .35) !important;
+}
 .chip-outline {
   color: #eaf0ff !important; border-color: rgba(234,240,255,.28) !important;
   background: rgba(234,240,255,.07) !important;
@@ -691,7 +705,8 @@ function exportPDF () {
 }
 .chip-count { font-weight: 800; color: #eaf0ff !important; background: #1b5e20 !important; }
 
-/* Tabs compactos */
+/* ===== TABS compactas (idénticas al picker) ===== */
+.palcos-tabs{ border-bottom: 1px solid rgba(255,217,81,.12); margin-bottom: 8px; }
 .tabs-compact{ overflow-x:auto; }
 .tab-compact{
   text-transform:none !important; font-weight:700 !important;
@@ -752,7 +767,7 @@ function exportPDF () {
   min-width:46px; height:28px; border-radius:14px; font-size:.68rem;
 }
 
-/* GRID FILAS + ASIENTOS (desktop) */
+/* ===== GRID FILAS + ASIENTOS (desktop) ===== */
 .grid-rows-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:6px; }
 .grid-rows{ display:flex; flex-direction:column-reverse; gap:12px; min-width:max(480px,100%); }
 .row{
@@ -774,8 +789,12 @@ function exportPDF () {
 .seat.present{  background:#4caf50 !important; color:#fff !important; }
 .seat.assigned{ background:#ffb300 !important; color:#0b0d28 !important; }
 
-/* PASILLO CENTRAL */
-.principal-split{ display:grid; grid-template-columns: 1fr 28px 1fr; align-items:start; gap: 8px; }
+/* ===== PASILLO CENTRAL (VERTICAL) ===== */
+.principal-split{
+  display:grid;
+  grid-template-columns: 1fr 28px 1fr; /* <-- SIEMPRE vertical */
+  align-items:start; gap: 8px;
+}
 .aisle-vert{
   width: 100%; height: 100%; min-height: 100px;
   border-left: 2px dashed rgba(255,217,81,.35);
@@ -783,7 +802,7 @@ function exportPDF () {
   border-radius: 6px;
 }
 
-/* TABLA */
+/* ===== TABLA ===== */
 .table-wrap{ width:100%; overflow-x:auto; }
 .present-table :deep(thead th){
   position: sticky; top: 0; z-index: 2;
@@ -801,37 +820,38 @@ function exportPDF () {
   color: #ffd951 !important;
 }
 
-/* ===== MOBILE ===== */
+/* ===== MOBILE: Mantener formato con PASILLO VERTICAL ===== */
 @media (max-width: 900px){
   .legend :deep(.v-chip){ height:20px; font-size:11px; }
 
+  /* Scroll horizontal suave en cada bloque de filas */
   .grid-rows-wrap{
     overflow-x: auto !important;
     overflow-y: hidden !important;
     -webkit-overflow-scrolling: touch;
     padding-bottom: 6px;
   }
+
+  /* Mantener estructura de columnas (no cambiamos display/orientación) */
   .grid-rows{
-    display: flex !important;
-    flex-direction: column !important;
     gap: 10px !important;
-    min-width: 100% !important;
-    overflow: visible !important;
+    min-width: max(420px, 100%) !important;
   }
+
   .row{
-    display: grid !important;
-    grid-template-columns: 32px !important;
+    /* Seguimos con etiqueta de fila + columnas A1..A3 → izquierda a derecha */
+    grid-template-columns: 32px repeat(auto-fit, minmax(52px, 1fr)) !important;
     grid-auto-flow: column !important;
-    grid-auto-columns: 52px !important;
     align-items: center !important;
     gap: 6px !important;
-    width: max-content !important;
   }
+
   .row-label{
-    position: sticky !important;
-    left: 0; z-index: 1;
-    width: 32px !important; padding: 4px 0 !important; font-size:.7rem !important;
+    width: 32px !important;
+    padding: 4px 0 !important;
+    font-size: .7rem !important;
   }
+
   .seat.v-btn{
     min-width: 52px !important;
     width: 52px !important;
@@ -840,17 +860,27 @@ function exportPDF () {
     font-size: .7rem !important;
     padding: 0 6px !important;
   }
-  .principal-split{ grid-template-columns: 1fr !important; }
-  .aisle-vert{
-    height: 18px !important; min-height: 18px !important;
-    border-left: 0 !important; border-right: 0 !important;
-    border-top: 2px dashed rgba(255,217,81,.35) !important;
-    border-bottom: 2px dashed rgba(255,217,81,.35) !important;
+
+  /* === CLAVE: pasillo central sigue vertical === */
+  .principal-split{
+    grid-template-columns: 1fr 28px 1fr !important; /* NO colapsar a una sola columna */
+    align-items: start !important;
+    gap: 8px !important;
   }
+  .aisle-vert{
+    /* Mantener bordes verticales (no líneas horizontales) */
+    height: 100% !important;
+    min-height: 100% !important;
+    border-left: 2px dashed rgba(255,217,81,.35) !important;
+    border-right: 2px dashed rgba(255,217,81,.35) !important;
+    border-top: 0 !important;
+    border-bottom: 0 !important;
+  }
+
+  /* Compat con picker embebido (si aplica) */
   .palcos-window .row{
-    grid-template-columns: 32px !important;
+    grid-template-columns: 32px repeat(auto-fit, minmax(52px, 1fr)) !important;
     grid-auto-flow: column !important;
-    grid-auto-columns: 52px !important;
     width: max-content !important;
   }
   .palcos-window .seat.v-btn{
@@ -859,3 +889,4 @@ function exportPDF () {
   }
 }
 </style>
+

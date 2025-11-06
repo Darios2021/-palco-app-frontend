@@ -1,4 +1,3 @@
-<!-- src/components/PersonForm.vue -->
 <template>
   <v-card class="card-contrast" rounded="xl">
     <!-- ===== HEADER ===== -->
@@ -206,8 +205,9 @@
 <script setup>
 import { computed, reactive, ref, watch, nextTick, onMounted } from 'vue'
 import { useDisplay } from 'vuetify'
-import { useSeatsStore } from '../stores'
-import api from '../services/api'
+import { usePeopleStore } from '@/stores/peopleStore'    // ✅ CRUD personas
+import { useSeatsStore }  from '@/stores/seatsStore'      // ✅ estados/Mapa (opcional)
+import api from '@/services/api'
 
 /* ===================== PROPS / EMITS ===================== */
 const props = defineProps({
@@ -232,16 +232,16 @@ function showToast (text, ok = true) {
   snackbar.show = true
 }
 
-/* ===================== PINIA STORE ===================== */
-const store = useSeatsStore()
+/* ===================== PINIA STORES ===================== */
+const people = usePeopleStore()   // <— ESTE es el que hace create/update
+const seats  = useSeatsStore()    // <— Para status de asientos (si usás)
 
+/* cargar personas (para saber asientos ocupados) */
 async function ensurePeopleLoaded () {
   loadingPeople.value = true
   try {
-    if (typeof store.ensureLoaded === 'function') {
-      await store.ensureLoaded()
-    } else if (typeof store.refresh === 'function') {
-      await store.refresh()
+    if (typeof people.fetchAll === 'function') {
+      await people.fetchAll()
     }
   } finally {
     loadingPeople.value = false
@@ -256,7 +256,7 @@ const palcoItems = computed(() => palcos.value)
 async function fetchPalcos() {
   loadingPalcos.value = true
   try {
-    const res = await api.get('/palcos')
+    const res = await api.get('/palcos')   // requiere /api/palcos en el back
     palcos.value = Array.isArray(res.data) ? res.data : []
     if (!selectedPalcoId.value && palcos.value.length > 0) {
       selectedPalcoId.value = palcos.value[0].id
@@ -302,9 +302,10 @@ function colsForRow(letter) {
 }
 
 /* ===================== STATUS DE ASIENTO ===================== */
+/* Importante: miramos el peopleStore.list para ver ocupación */
 function seatStatusFromStore(code) {
   if (!code) return 'free'
-  const p = (store.people || []).find(p => p.seat === code)
+  const p = (people.list || []).find(p => p.seat === code)
   if (!p) return 'free'
   return p.present ? 'present' : 'assigned'
 }
@@ -369,9 +370,8 @@ function normalizePayload(payload) {
   if (out.seat === '') out.seat = null
   return out
 }
-async function refreshStore() {
-  if (typeof store.refresh === 'function') await store.refresh()
-  else if (typeof store.ensureLoaded === 'function') await store.ensureLoaded()
+async function refreshPeople() {
+  if (typeof people.fetchAll === 'function') await people.fetchAll()
 }
 function safeResetForm() {
   if (formRef.value?.reset) formRef.value.reset()
@@ -391,11 +391,11 @@ async function onSubmit() {
     const payload = normalizePayload(form)
 
     if (isEdit.value) {
-      await store.updatePerson(props.person.id, payload)
+      await people.updatePerson(props.person.id, payload)   // ✅ usar peopleStore
       showToast('Cambios guardados.', true)
       emit('saved', { id: props.person.id })
     } else {
-      const created = await store.createPerson(payload)
+      const created = await people.createPerson(payload)    // ✅ usar peopleStore
       const newId = created?.id ?? created ?? null
       showToast(newId ? `Persona creada (#${newId}).` : 'Persona creada correctamente.', true)
       safeResetForm()
@@ -404,7 +404,7 @@ async function onSubmit() {
       emit('saved', { id: newId })
     }
 
-    await refreshStore()
+    await refreshPeople()
   } catch (e) {
     console.error('onSubmit error', e)
     showToast(e?.message || 'Error al guardar.', false)

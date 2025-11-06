@@ -1,6 +1,6 @@
 // src/stores/peopleStore.js
 import { defineStore } from 'pinia'
-import api from '@/services/api' // axios con baseURL
+import api from '@/services/api'
 
 export const usePeopleStore = defineStore('people', {
   state: () => ({
@@ -9,6 +9,11 @@ export const usePeopleStore = defineStore('people', {
     error: null,
   }),
 
+  getters: {
+    // por comodidad si algún componente usa "people"
+    people: (state) => state.list,
+  },
+
   actions: {
     async fetchAll() {
       this.loading = true
@@ -16,7 +21,6 @@ export const usePeopleStore = defineStore('people', {
       try {
         const res = await api.get('/people')
         this.list = Array.isArray(res.data) ? res.data : []
-        // (opcional) forzar referencia nueva por si algún watcher es “perezoso”
         this.list = [...this.list]
       } catch (err) {
         console.error('fetchAll people error', err)
@@ -27,13 +31,11 @@ export const usePeopleStore = defineStore('people', {
     },
 
     async createPerson(payload) {
-      // payload: { name, doc, org, cargo, seat? }
-      this.error = null
       try {
         const res = await api.post('/people', payload)
         const newPerson = res.data
         this.list.unshift(newPerson)
-        this.list = [...this.list] // 👈 fuerza notificación de cambio
+        this.list = [...this.list]
         return newPerson
       } catch (err) {
         console.error('createPerson error', err)
@@ -43,7 +45,6 @@ export const usePeopleStore = defineStore('people', {
     },
 
     async markPresent(id) {
-      // POST /people/:id/checkin
       try {
         const res = await api.post(`/people/${id}/checkin`)
         const updated = res.data
@@ -55,8 +56,12 @@ export const usePeopleStore = defineStore('people', {
       }
     },
 
+    // alias por compatibilidad si algún componente llamaba checkInById
+    async checkInById(id) {
+      return this.markPresent(id)
+    },
+
     async updatePerson(id, patch) {
-      // PUT /people/:id  (p.ej. { present:false } o { seat:null })
       try {
         const res = await api.put(`/people/${id}`, patch)
         const updated = res.data
@@ -68,14 +73,27 @@ export const usePeopleStore = defineStore('people', {
       }
     },
 
+    async removePerson(id) {
+      try {
+        await api.delete(`/people/${id}`)
+        this.list = this.list.filter(p => p.id !== id)
+        this.list = [...this.list]
+      } catch (err) {
+        console.error('removePerson error', err)
+        throw err
+      }
+    },
+
+    // alias "refresh" usado por varias vistas
+    async refresh() {
+      await this.fetchAll()
+    },
+
     _merge(updated) {
       const idx = this.list.findIndex(p => p.id === updated.id)
-      if (idx !== -1) {
-        this.list[idx] = { ...this.list[idx], ...updated }
-      } else {
-        this.list.unshift(updated)
-      }
-      this.list = [...this.list] // 👈 clave para reactividad dura en prod
+      if (idx !== -1) this.list[idx] = { ...this.list[idx], ...updated }
+      else this.list.unshift(updated)
+      this.list = [...this.list]
     },
   },
 })
