@@ -419,10 +419,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, onBeforeUnmount } from 'vue'
 import { useDisplay } from 'vuetify'
-import { useSeatsStore } from '@/stores/seatsStore'
-import { usePeopleStore } from '@/stores/peopleStore'
+import { useSeatsStore, usePeopleStore } from '@/stores'
 import api from '@/services/api'
 
 /* ===== Breakpoints ===== */
@@ -467,19 +466,43 @@ function rebuildSeatToPalco () {
   seatToPalcoId.value = map
 }
 
-/* Load inicial */
+/* ==== Carga inicial + suscripciones ==== */
+let unsubscribePeople = null
+let unActionPeople = null
+let autoPull = null
+
 onMounted(async () => {
-  // 1) Garantizar wiring y datos base en el store (idempotente)
+  // 1) wiring + datos base
   await seats.ensureLoaded().catch(() => {})
 
-  // 2) Cargar layout de los 3 palcos usados por este componente
+  // 2) layout de palcos
   await Promise.all([loadPalco(1), loadPalco(2), loadPalco(3)])
-
   rebuildSeatToPalco()
   globalLoading.value = false
+
+  // 3) suscripción reactiva: si cambia people.list, refresca statusAll (por redundancia)
+  unsubscribePeople = people.$subscribe(() => {
+    seats._rebuildStatusFromPeople(people.list)
+  }, { detached: true })
+
+  // 4) escucha acciones clave del peopleStore
+  const touch = new Set(['markPresent', 'updatePerson', 'createPerson', 'fetchAll'])
+  unActionPeople = people.$onAction(({ name, after }) => {
+    if (!touch.has(name)) return
+    after(() => seats._rebuildStatusFromPeople(people.list))
+  })
+
+  // 5) auto-pull cada 15 s (sincronización backend multiusuario)
+  autoPull = setInterval(() => people.fetchAll().catch(()=>{}), 15000)
 })
 
-/* Computed filas */
+onBeforeUnmount(() => {
+  if (unsubscribePeople) unsubscribePeople()
+  if (unActionPeople) unActionPeople()
+  if (autoPull) clearInterval(autoPull)
+})
+
+/* ===== Computed filas ===== */
 const palcoPrincipalRows = computed(() => palcoMap.value[1]?.rows || [])
 const palcoIzqRows       = computed(() => palcoMap.value[2]?.rows || [])
 const palcoDerRows       = computed(() => palcoMap.value[3]?.rows || [])
@@ -507,7 +530,7 @@ const palcoPrincipalRightRows = computed(() => {
     .sort((a,b) => LETTERS_RIGHT.indexOf(a.letter.toUpperCase()) - LETTERS_RIGHT.indexOf(b.letter.toUpperCase()))
 })
 
-/* ===== Tabla de presentes (usa peopleStore directo) ===== */
+/* ===== Tabla de presentes ===== */
 const headers = [
   { title: 'Asiento',   key: 'seat',      sortable: true },
   { title: 'Nombre',    key: 'name',      sortable: true },
@@ -528,7 +551,9 @@ const presentRowsByPalco = computed(() => {
     if (!pid) return
     acc[pid].push({ name: p.name, seat: code, org: p.org, doc: p.doc, presentAt: p.presentAt })
   })
-  Object.keys(acc).forEach(pid => acc[pid].sort((a,b) => (a.presentAt || '').localeCompare(b.presentAt || '')))
+  Object.keys(acc).forEach(pid =>
+    acc[pid].sort((a,b) => (a.presentAt || '').localeCompare(b.presentAt || ''))
+  )
   return acc
 })
 
@@ -554,9 +579,9 @@ const filteredRows = computed(() => {
 const tableHeight  = computed(() => (smForTable.value ? 340 : 420))
 const itemsPerPage = computed(() => (smForTable.value ? 10  : 25))
 
-/* Estado visual por asiento (viene del seatsStore.statusAll) */
+/* Estado visual de cada asiento */
 function seatStatusClass (code) {
-  return seats.seatStatus?.(code) || 'free'  // valores: 'present' | 'assigned' | 'free'
+  return seats.seatStatus?.(code) || 'free' // 'present' | 'assigned' | 'free'
 }
 
 /* Modal detalle asiento */
@@ -573,13 +598,17 @@ function formatDateTime (iso, compact = false) {
   try {
     const dt = new Date(iso)
     if (compact) {
-      return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(dt).replace(',', '')
+      return new Intl.DateTimeFormat('es-AR', {
+        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
+      }).format(dt).replace(',', '')
     }
-    return new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeStyle: 'short', hour12: false }).format(dt).replace(',', '')
+    return new Intl.DateTimeFormat('es-AR', {
+      dateStyle: 'medium', timeStyle: 'short', hour12: false
+    }).format(dt).replace(',', '')
   } catch { return iso }
 }
 
-/* Export HTML (misma lógica que tenías) */
+/* Export HTML */
 function exportPDF () {
   const rows = filteredRows.value
   if (!rows.length) { alert('No hay datos para exportar.'); return }
@@ -622,6 +651,7 @@ function exportPDF () {
   URL.revokeObjectURL(url)
 }
 </script>
+
 
 <style scoped>
 /* ===== Card / fondo oscuro dorado ===== */

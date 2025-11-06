@@ -1,3 +1,4 @@
+<!-- src/components/PeopleList.vue -->
 <template>
   <v-card rounded="xl" class="card-contrast">
     <v-card-title class="title-contrast">
@@ -9,7 +10,7 @@
       <div class="topbar">
         <v-text-field
           v-model="q"
-          label="Buscar por nombre, DNI, organismo, palco o asiento"
+          label="Buscar por nombre, cargo, organismo, palco o asiento"
           class="search"
           prepend-inner-icon="mdi-magnify"
           clearable
@@ -68,7 +69,6 @@
           <template #item.actions="{ item }">
             <!-- Desktop -->
             <div v-if="!smAndDown" class="actions-row">
-              <!-- Asignar presente -->
               <v-tooltip text="Marcar presente">
                 <template #activator="{ props }">
                   <v-btn
@@ -82,7 +82,6 @@
                 </template>
               </v-tooltip>
 
-              <!-- Quitar presente -->
               <v-tooltip text="Quitar presente">
                 <template #activator="{ props }">
                   <v-btn
@@ -96,7 +95,6 @@
                 </template>
               </v-tooltip>
 
-              <!-- Asignar / Cambiar asiento -->
               <v-tooltip text="Asignar / cambiar asiento">
                 <template #activator="{ props }">
                   <v-btn
@@ -110,7 +108,6 @@
                 </template>
               </v-tooltip>
 
-              <!-- Desasignar asiento -->
               <v-tooltip text="Desasignar asiento">
                 <template #activator="{ props }">
                   <v-btn
@@ -124,7 +121,6 @@
                 </template>
               </v-tooltip>
 
-              <!-- Editar persona -->
               <v-tooltip text="Editar datos">
                 <template #activator="{ props }">
                   <v-btn
@@ -138,7 +134,6 @@
                 </template>
               </v-tooltip>
 
-              <!-- Eliminar persona -->
               <v-tooltip text="Eliminar">
                 <template #activator="{ props }">
                   <v-btn
@@ -232,54 +227,24 @@
       </v-card>
     </v-dialog>
 
-    <!-- MODAL EDITAR PERSONA -->
-    <v-dialog v-model="editDialogOpen" max-width="420">
-      <v-card class="card-contrast">
-        <v-card-title class="title-contrast">Editar datos</v-card-title>
-        <v-card-text>
-          <v-form @submit.prevent="saveEdit">
-            <v-text-field
-              v-model="editBuffer.name"
-              label="Nombre"
-              density="comfortable"
-              variant="solo-filled"
-              class="edit-field"
-              prepend-inner-icon="mdi-account"
-              hide-details="auto"
-            />
-            <v-text-field
-              v-model="editBuffer.doc"
-              label="DNI"
-              density="comfortable"
-              variant="solo-filled"
-              class="edit-field"
-              prepend-inner-icon="mdi-card-account-details"
-              hide-details="auto"
-            />
-            <v-text-field
-              v-model="editBuffer.org"
-              label="Organismo / Institución"
-              density="comfortable"
-              variant="solo-filled"
-              class="edit-field"
-              prepend-inner-icon="mdi-domain"
-              hide-details="auto"
-            />
-          </v-form>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" class="btn-text" @click="editDialogOpen=false">Cancelar</v-btn>
-          <v-btn class="btn-strong" color="primary" :disabled="busy" @click="saveEdit">
-            Guardar cambios
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <!-- PICKER DE ASIENTO (autocontenido) -->
+    <SeatPickerDialog
+      v-model="seatPickerOpen"
+      :current-seat="seatTarget?.seat || ''"
+      :person-name="seatTarget?.name || ''"
+      :allow-assigned="false"
+      @confirm="handleConfirmSeat"
+    />
 
-    <!-- MODAL PICKER DE ASIENTO (usa data viva de adminpalco) -->
-    <v-dialog v-model="seatPickerOpen" max-width="900">
-      <SeatPickerDialog @select="handleConfirmSeat" />
+    <!-- EDITAR PERSONA (usa PersonEditForm) -->
+    <v-dialog v-model="editDialogOpen" max-width="720">
+      <PersonEditForm
+        v-if="editPerson"
+        :person="editPerson"
+        @update:person="editPerson = $event"
+        @saved="onPersonSaved"
+        @cancel="editDialogOpen = false"
+      />
     </v-dialog>
   </v-card>
 </template>
@@ -289,6 +254,7 @@ import { computed, ref } from 'vue'
 import { useDisplay } from 'vuetify'
 import { useSeatsStore } from '../stores'
 import SeatPickerDialog from './SeatPickerDialog.vue'
+import PersonEditForm from './PersonEditForm.vue'
 
 const { smAndDown } = useDisplay()
 const store = useSeatsStore()
@@ -299,7 +265,7 @@ const store = useSeatsStore()
 const headers = [
   { title: 'ID',         key: 'id',        width: 70 },
   { title: 'Nombre',     key: 'name',      minWidth: 200 },
-  { title: 'DNI',        key: 'doc',       width: 120 },
+  { title: 'Cargo',      key: 'cargo',     width: 160 },
   { title: 'Organismo',  key: 'org',       minWidth: 200 },
   { title: 'Palco',      key: 'palco',     width: 150 },
   { title: 'Asiento',    key: 'seat',      width: 110 },
@@ -315,19 +281,10 @@ function palcoNameFromSeat(seatCode) {
   const first = String(seatCode).charAt(0).toUpperCase()
 
   if ('ABCDEFG'.includes(first)) return 'PALCO PRINCIPAL'
-  if ('HIJKL'.includes(first))   return 'PALCO A'
-  if ('MNOPQ'.includes(first))   return 'PALCO B'
+  if ('HIJKL'.includes(first))   return 'PALCO IZQ'
+  if ('MNOPQ'.includes(first))   return 'PALCO DER'
 
   return '—'
-}
-
-/* También clave para el picker inicial */
-function palcoKeyFromSeat(seatCode) {
-  if (!seatCode) return 'P'
-  const first = String(seatCode).charAt(0).toUpperCase()
-  if ('HIJKL'.includes(first))   return 'A'
-  if ('MNOPQ'.includes(first))   return 'B'
-  return 'P'
 }
 
 /* =====================
@@ -344,7 +301,7 @@ const filtered = computed(() => {
     const palcoName = palcoNameFromSeat(p.seat) || ''
     return (
       p.name?.toLowerCase().includes(k) ||
-      (p.doc || '').toLowerCase().includes(k) ||
+      (p.cargo || '').toLowerCase().includes(k) ||
       (p.org || '').toLowerCase().includes(k) ||
       (p.seat || '').toLowerCase().includes(k) ||
       palcoName.toLowerCase().includes(k)
@@ -382,29 +339,24 @@ function seatVariant(code) {
    ASIGNACIÓN DE ASIENTO
 ===================== */
 const seatPickerOpen = ref(false)
-const seatTarget = ref(null) // persona objetivo
+const seatTarget = ref(null)
 
 function openSeatPicker(person) {
-  seatTarget.value    = person
+  seatTarget.value = person
   seatPickerOpen.value = true
 }
 
-// confirmar asiento que vino del dialog hijo
-async function handleConfirmSeat(seatCode) {
+// acepta { seat } o string
+async function handleConfirmSeat(payload) {
+  const seatCode = typeof payload === 'string' ? payload : payload?.seat
   if (!seatTarget.value || !seatCode) return
   busy.value = true
   try {
-    // liberar si otro lo tenía
-    const other = store.people.find(
-      p => p.id !== seatTarget.value.id && p.seat === seatCode
-    )
+    const other = store.people.find(p => p.id !== seatTarget.value.id && p.seat === seatCode)
     if (other) {
       await store.updatePerson(other.id, { seat: null })
     }
-
-    // asignar al seleccionado
     await store.updatePerson(seatTarget.value.id, { seat: seatCode })
-
     await store.refresh()
     seatPickerOpen.value = false
   } catch (err) {
@@ -458,32 +410,24 @@ async function removePresent(person) {
 }
 
 /* =====================
-   EDITAR PERSONA
+   EDITAR PERSONA (con PersonEditForm)
 ===================== */
 const editDialogOpen = ref(false)
-const editBuffer = ref({ id: null, name: '', doc: '', org: '' })
+const editPerson = ref(null)
 
 function openEditDialog(person) {
-  editBuffer.value = {
-    id: person.id,
-    name: person.name || '',
-    doc: person.doc || '',
-    org: person.org || ''
-  }
+  // clonado simple para edición controlada en el hijo
+  editPerson.value = { ...person }
   editDialogOpen.value = true
 }
 
-async function saveEdit() {
-  busy.value = true
+async function onPersonSaved() {
   try {
-    const { id, name, doc, org } = editBuffer.value
-    await store.updatePerson(id, { name, doc, org })
+    busy.value = true
     await store.refresh()
-    editDialogOpen.value = false
-  } catch (err) {
-    console.error('saveEdit error', err)
   } finally {
     busy.value = false
+    editDialogOpen.value = false
   }
 }
 
@@ -632,17 +576,6 @@ async function doRemove() {
 }
 .btn-strong {
   font-weight: 800;
-}
-
-/* seat picker legend pills already styled in child */
-
-.edit-field :deep(.v-field) {
-  background: rgba(255,255,255,0.06) !important;
-  border-radius: 12px !important;
-  color: #eaf0ff !important;
-}
-.edit-field :deep(.v-icon) {
-  color: #ffd951 !important;
 }
 
 @media (max-width: 960px) {

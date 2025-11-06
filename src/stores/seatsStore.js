@@ -10,7 +10,7 @@ export const useSeatsStore = defineStore('seats', {
     palcos: [],            // [{id, name}]
     currentPalcoId: 1,     // Palco por defecto
     mapa: null,            // { palcoId, name, rows, cols, seats[][], status? }
-    statusAll: {},         // { [seatCode]: 'free'|'assigned'|'present' }  <-- GLOBAL y reactivo
+    statusAll: {},         // { [seatCode]: 'free'|'assigned'|'present' } (GLOBAL)
     error: null,
 
     _wired: false,         // evita duplicar suscripciones
@@ -30,16 +30,18 @@ export const useSeatsStore = defineStore('seats', {
       return out
     },
 
-    /* Estado por asiento – usa el mapa GLOBAL para soportar todos los palcos */
+    // Estado por asiento – usa el mapa GLOBAL para todos los palcos
     seatStatus: (state) => (code) => state.statusAll?.[code] || 'free',
 
-    /* Holder por asiento – consulta directo al peopleStore */
+    // Holder por asiento – consulta directo al peopleStore
     seatHolder: () => (code) => {
       const people = usePeopleStore()
-      return (people.list || []).find(p => (p.seat ?? p.seatCode ?? p.seat_code) === code) || null
+      return (people.list || []).find(
+        p => (p.seat ?? p.seatCode ?? p.seat_code) === code
+      ) || null
     },
 
-    /* SOLO compat: lista de personas expuesta (para componentes que la lean del seatsStore) */
+    // Compat: lista de personas desde seatsStore
     peopleList() {
       const people = usePeopleStore()
       return people.list || []
@@ -66,8 +68,15 @@ export const useSeatsStore = defineStore('seats', {
 
       // 3) Reaccionar a acciones típicas que tocan presencia/asientos
       const touchNames = new Set([
-        'fetchAll', 'createPerson', 'updatePerson',
-        'checkIn', 'setPresent', 'assignSeat', 'unassignSeat', 'bulkCheckIn'
+        'fetchAll',
+        'createPerson',
+        'updatePerson',
+        'markPresent',   // 👈 importante para CheckIn
+        'checkIn',       // por si existe con ese nombre en algún flujo
+        'setPresent',
+        'assignSeat',
+        'unassignSeat',
+        'bulkCheckIn',
       ])
       people.$onAction(({ name, after }) => {
         if (!touchNames.has(name)) return
@@ -77,9 +86,7 @@ export const useSeatsStore = defineStore('seats', {
       this._wired = true
     },
 
-    /* ===== Carga/boot público y único =====
-       - Garantiza wiring + palcos + mapa inicial.
-       - Idempotente (se puede llamar desde varios componentes sin problemas). */
+    /* ===== Carga/boot público y único ===== */
     async ensureLoaded() {
       this._ensureWired()
 
@@ -89,7 +96,7 @@ export const useSeatsStore = defineStore('seats', {
       if (!this.mapa) {
         await this.fetchMapa(this.currentPalcoId).catch(() => {})
       } else {
-        // Asegurar que el status local refleje el global actual
+        // reflejar el global actual en el mapa local
         this._rebuildStatusFromPeople(usePeopleStore().list)
       }
 
@@ -108,7 +115,7 @@ export const useSeatsStore = defineStore('seats', {
       // Reemplazo inmutable para disparar reactividad
       this.statusAll = { ...nextAll }
 
-      // Si hay mapa cargado, reflejar subset en mapa.status (opcional pero útil en SeatPickerDialog)
+      // Reflejar subset en mapa.status (útil en SeatPickerDialog)
       if (this.mapa?.seats) {
         const local = {}
         this.mapa.seats.flat().forEach(code => {

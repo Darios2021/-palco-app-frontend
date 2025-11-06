@@ -376,15 +376,21 @@
   </v-card>
 </template>
 
+
+
 <script setup>
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useDisplay } from 'vuetify'
-import { useSeatsStore } from '../stores'
+import { usePeopleStore, useSeatsStore } from '@/stores'
 import SeatPickerDialog from './SeatPickerDialog.vue'
-import PersonForm from './PersonForm.vue'              // crear
-import PersonEditForm from './PersonEditForm.vue'      // editar
+import PersonForm from './PersonForm.vue'
+import PersonEditForm from './PersonEditForm.vue'
 
-const store = useSeatsStore()
+/* ===== Stores ===== */
+const people = usePeopleStore()   // fuente de verdad de personas/presencia/asientos
+const seats  = useSeatsStore()    // helpers de estado global/statusAll
+
+/* ===== Breakpoints ===== */
 const { smAndDown } = useDisplay()
 const isMobile = computed(() => smAndDown.value)
 
@@ -392,12 +398,9 @@ const isMobile = computed(() => smAndDown.value)
 const submitting = ref(false)
 const releasing = ref(false)
 const unmarking = ref(false)
-
 const seatPickerOpen = ref(false)
 const assigning = ref(false)
 const createPersonOpen = ref(false)
-
-/* edición */
 const editPersonOpen = ref(false)
 const editablePerson = ref(null)
 
@@ -408,28 +411,26 @@ const isTypingLoading = ref(false)
 const typingTimer = ref(null)
 
 const selected = ref(null)
-
 const selectedSeatCode = ref(null)
 const selectedSeatId = ref(null)
 const selectedPresent = ref(false)
-const selectedCargo = ref('')   // reemplaza selectedDoc
+const selectedCargo = ref('')
 const selectedOrg = ref('')
 
 const confirmRelease = ref(false)
 const lastSeat = ref(null)
-
 const snackbar = ref({ show:false, text:'', ok:true })
 
 /* ===== PALCO ===== */
 function inferPalcoFromSeat (seatCode) {
   if (!seatCode) return ''
-  const rowLetter = String(seatCode)[0]?.toUpperCase() || ''
-  const principalSet = new Set(['A','B','C','D','E','F','G'])
-  const palcoASet    = new Set(['H','I','J','K','L'])
-  const palcoBSet    = new Set(['M','N','O','P','Q'])
-  if (principalSet.has(rowLetter)) return 'Palco Principal'
-  if (palcoASet.has(rowLetter))    return 'Palco A'
-  if (palcoBSet.has(rowLetter))    return 'Palco B'
+  const row = String(seatCode)[0]?.toUpperCase() || ''
+  const P = new Set(['A','B','C','D','E','F','G'])
+  const A = new Set(['H','I','J','K','L'])
+  const B = new Set(['M','N','O','P','Q'])
+  if (P.has(row)) return 'Palco Principal'
+  if (A.has(row)) return 'Palco A'
+  if (B.has(row)) return 'Palco B'
   return 'Palco Principal'
 }
 
@@ -449,9 +450,9 @@ const selectedPalcoName = computed(() => selectedSeatCode.value ? inferPalcoFrom
 const norm = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 const initials = name => String(name || '').trim().split(/\s+/).slice(0,2).map(x => x[0]?.toUpperCase() ?? '').join('')
 
-/* ===== PEOPLE ===== */
+/* ===== PEOPLE (usar people.list) ===== */
 const allPeople = computed(() =>
-  (store.people ?? []).map(p => {
+  (people.list ?? []).map(p => {
     const seatCode = p.seatCode ?? p.seat ?? p.seat_code ?? null
     const cleanSubtitle = p.rank || p.cargo || p.role || ''
     return {
@@ -476,17 +477,48 @@ const filteredResults = computed(() => {
   return allPeople.value.filter(p => p._keywords.includes(q)).slice(0, 20)
 })
 
-/* ===== LIFECYCLE ===== */
-onMounted(async () => {
-  await ensureStoreLoaded()
-  hintTimer = setInterval(advanceHint, 1000)
-})
-onBeforeUnmount(() => { if (hintTimer) clearInterval(hintTimer) })
+/* ===== LIFECYCLE & SYNC CRUZADO ===== */
+let unsubscribePeople = null
+let unActionPeople = null
 
-async function ensureStoreLoaded () {
-  if (typeof store.ensureLoaded === 'function') {
-    try { isTypingLoading.value = true; await store.ensureLoaded() }
-    finally { isTypingLoading.value = false }
+onMounted(async () => {
+  await ensureLoaded()
+  hintTimer = setInterval(advanceHint, 1000)
+
+  // 🔄 Escucha profunda del store para mantener el panel en sync
+  unsubscribePeople = people.$subscribe((_mutation, state) => {
+    if (!selectedId.value) return
+    const fresh = state.list.find(p => p.id == selectedId.value)
+    if (fresh) syncFromPerson(fresh)
+  }, { detached: true })
+
+  // 🔄 Re-actualiza luego de acciones clave (check-in, update, create, fetch)
+  const touch = new Set(['markPresent', 'updatePerson', 'createPerson', 'fetchAll'])
+  unActionPeople = people.$onAction(({ name, after }) => {
+    if (!touch.has(name)) return
+    after(() => {
+      if (!selectedId.value) return
+      const fresh = (people.list || []).find(p => p.id == selectedId.value)
+      if (fresh) syncFromPerson(fresh)
+    })
+  })
+})
+
+onBeforeUnmount(() => {
+  if (hintTimer) clearInterval(hintTimer)
+  if (typeof unsubscribePeople === 'function') unsubscribePeople()
+  if (typeof unActionPeople === 'function') unActionPeople()
+})
+
+async function ensureLoaded () {
+  try {
+    isTypingLoading.value = true
+    // cargar personas
+    await people.fetchAll()
+    // asegurar wiring de seats (statusAll global)
+    await seats.ensureLoaded?.()
+  } finally {
+    isTypingLoading.value = false
   }
 }
 
@@ -545,13 +577,8 @@ function clearAll () {
   hideToast()
 }
 
-/* ===== STORE HELPERS ===== */
-async function tryCall (name, ...args) {
-  const fn = store?.[name]
-  if (typeof fn !== 'function') return undefined
-  try { return await fn(...args) } catch { return undefined }
-}
-async function refreshStore () { await (store.refresh?.() || store.ensureLoaded?.() || Promise.resolve()) }
+/* ===== HELPERS STORE ===== */
+async function refreshPeople () { await people.fetchAll() }
 
 function syncFromPerson (p) {
   const seatCode = p.seatCode ?? p.seat ?? p.seat_code ?? null
@@ -574,7 +601,7 @@ function syncFromPerson (p) {
   }
 }
 function syncFromStoreById (idLike) {
-  const fresh = (store.people ?? []).find(p => p.id == idLike)
+  const fresh = (people.list ?? []).find(p => p.id == idLike)
   if (fresh) { syncFromPerson(fresh); return true }
   return false
 }
@@ -591,10 +618,10 @@ async function onSeatPicked({ seat }) {
   assigning.value = true
   try {
     const targetId = selectedId.value
-    const other = store.people.find(p => p.id !== targetId && (p.seat === seat || p.seatCode === seat || p.seat_code === seat))
-    if (other) await store.updatePerson(other.id, { seat: null })
-    await store.updatePerson(targetId, { seat })
-    await refreshStore(); syncFromStoreById(targetId)
+    const other = (people.list ?? []).find(p => p.id !== targetId && (p.seat === seat || p.seatCode === seat || p.seat_code === seat))
+    if (other) await people.updatePerson(other.id, { seat: null })
+    await people.updatePerson(targetId, { seat })
+    await refreshPeople(); syncFromStoreById(targetId)
     showToast('Asiento asignado', true)
   } catch { showToast('Error al asignar asiento', false) }
   finally { assigning.value = false; seatPickerOpen.value = false }
@@ -607,15 +634,15 @@ async function handleSubmit () {
   if (!selected.value) { showToast('Seleccioná una persona', false); submitting.value = false; return }
   try {
     const id = selectedId.value
-    const live = (store.people ?? []).find(p => p.id == id)
+    const live = (people.list ?? []).find(p => p.id == id)
     if (live?.present || selectedPresent.value) { showToast('Ya estaba presente', true); submitting.value = false; return }
-    const updated =
-      await tryCall('checkInById', id) ??
-      await tryCall('setPresent', id, true) ??
-      await tryCall('updatePerson', id, { present: true })
+    // peopleStore expone markPresent(id); fallback a updatePerson
+    const updated = await people.markPresent(id).catch(async () => {
+      return await people.updatePerson(id, { present: true })
+    })
     if (updated) { syncFromPerson(updated) } else { selectedPresent.value = true; if (selected.value) selected.value.present = true }
     lastSeat.value = selectedSeatCode.value || null
-    await refreshStore(); syncFromStoreById(id)
+    await refreshPeople(); syncFromStoreById(id)
     showToast('Registrado correctamente', true)
   } catch { showToast('No se pudo registrar', false) }
   finally { submitting.value = false }
@@ -631,8 +658,8 @@ async function onReleaseSeat () {
   }
   try {
     const personId = selectedId.value
-    await store.updatePerson(personId, { seat: null })
-    await refreshStore(); syncFromStoreById(personId)
+    await people.updatePerson(personId, { seat: null })
+    await refreshPeople(); syncFromStoreById(personId)
     showToast('Asiento liberado', true)
   } catch { showToast('Error al liberar el asiento', false) }
   finally { releasing.value = false; confirmRelease.value = false }
@@ -645,10 +672,10 @@ async function onRemovePresenceLikeTable () {
   if (!selectedId.value) { showToast('No hay persona seleccionada', false); unmarking.value = false; return }
   try {
     const personId = selectedId.value
-    await store.updatePerson(personId, { present: false })
+    await people.updatePerson(personId, { present: false })
     selectedPresent.value = false
     if (selected.value) selected.value.present = false
-    await refreshStore(); syncFromStoreById(personId)
+    await refreshPeople(); syncFromStoreById(personId)
     showToast('Presencialidad desactivada', true)
   } catch { showToast('No se pudo desactivar presencialidad', false) }
   finally { unmarking.value = false }
@@ -658,7 +685,7 @@ async function onRemovePresenceLikeTable () {
 function openCreatePerson(){ createPersonOpen.value = true }
 async function onPersonCreated(newPerson){
   createPersonOpen.value = false
-  await refreshStore()
+  await refreshPeople()
   if (newPerson?.id && syncFromStoreById(newPerson.id)) {
     showToast('Persona creada', true)
   } else {
@@ -668,14 +695,14 @@ async function onPersonCreated(newPerson){
 
 function openEditPerson () {
   if (!selectedId.value) { showToast('Seleccioná una persona', false); return }
-  const fresh = (store.people ?? []).find(p => p.id == selectedId.value)
+  const fresh = (people.list ?? []).find(p => p.id == selectedId.value)
   if (!fresh) { showToast('No se pudo cargar la persona', false); return }
   editablePerson.value = JSON.parse(JSON.stringify(fresh))
   editPersonOpen.value = true
 }
 async function onPersonEdited (updated) {
   editPersonOpen.value = false
-  await refreshStore()
+  await refreshPeople()
   if (updated?.id && syncFromStoreById(updated.id)) {
     showToast('Datos actualizados', true)
   } else if (selectedId.value) {
@@ -686,6 +713,11 @@ async function onPersonEdited (updated) {
   }
 }
 </script>
+
+
+
+
+
 
 <style scoped>
 /* ===== SHELL PRINCIPAL ===== */

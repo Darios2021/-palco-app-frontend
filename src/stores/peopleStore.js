@@ -1,6 +1,6 @@
 // src/stores/peopleStore.js
 import { defineStore } from 'pinia'
-import api from '@/services/api' // asumo que ya tenés un axios con baseURL
+import api from '@/services/api' // axios con baseURL
 
 export const usePeopleStore = defineStore('people', {
   state: () => ({
@@ -15,7 +15,9 @@ export const usePeopleStore = defineStore('people', {
       this.error = null
       try {
         const res = await api.get('/people')
-        this.list = res.data || []
+        this.list = Array.isArray(res.data) ? res.data : []
+        // (opcional) forzar referencia nueva por si algún watcher es “perezoso”
+        this.list = [...this.list]
       } catch (err) {
         console.error('fetchAll people error', err)
         this.error = err.message || 'Error cargando personas'
@@ -25,13 +27,13 @@ export const usePeopleStore = defineStore('people', {
     },
 
     async createPerson(payload) {
-      // payload esperado: { name, doc, org, cargo, seat }
+      // payload: { name, doc, org, cargo, seat? }
       this.error = null
       try {
         const res = await api.post('/people', payload)
         const newPerson = res.data
-        // metemos la nueva persona arriba de la lista
         this.list.unshift(newPerson)
+        this.list = [...this.list] // 👈 fuerza notificación de cambio
         return newPerson
       } catch (err) {
         console.error('createPerson error', err)
@@ -54,7 +56,7 @@ export const usePeopleStore = defineStore('people', {
     },
 
     async updatePerson(id, patch) {
-      // PUT /people/:id  (puede venir { present:false } o { seat:null } etc)
+      // PUT /people/:id  (p.ej. { present:false } o { seat:null })
       try {
         const res = await api.put(`/people/${id}`, patch)
         const updated = res.data
@@ -71,9 +73,9 @@ export const usePeopleStore = defineStore('people', {
       if (idx !== -1) {
         this.list[idx] = { ...this.list[idx], ...updated }
       } else {
-        // si no estaba lo agrego
         this.list.unshift(updated)
       }
+      this.list = [...this.list] // 👈 clave para reactividad dura en prod
     },
   },
 })
