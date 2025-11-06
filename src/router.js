@@ -8,6 +8,7 @@ import SeatsView from './views/SeatsView.vue'
 import PeopleView from './views/PeopleView.vue'
 import AdminPalcos from './views/AdminPalcos.vue'
 import LoginView from './views/LoginView.vue'
+import ImportInvitados from './views/ImportInvitados.vue' // 👈 NUEVO
 
 const routes = [
   { path: '/login', name: 'login', component: LoginView },
@@ -17,6 +18,9 @@ const routes = [
   { path: '/asientos', name: 'asientos', component: SeatsView, meta: { requiresAuth: true } },
   { path: '/personas', name: 'personas', component: PeopleView, meta: { requiresAuth: true } },
   { path: '/admin-palcos', name: 'admin-palcos', component: AdminPalcos, meta: { requiresAuth: true } },
+
+  // 👇 NUEVA RUTA PARA IMPORTAR INVITADOS
+  { path: '/import-invitados', name: 'import-invitados', component: ImportInvitados, meta: { requiresAuth: true } },
 
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]

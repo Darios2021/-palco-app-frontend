@@ -1,4 +1,3 @@
-<!-- src/components/SeatMap.vue -->
 <template>
   <!-- === MAPA 3 PALCOS / RESPONSIVE === -->
   <v-card rounded="xl" class="mb-6 card-contrast">
@@ -305,11 +304,25 @@
 
       <v-spacer />
 
+      <!-- Tabs sincronizados con el mapa (arriba) -->
+      <div class="table-tabs">
+        <v-tabs
+          v-model="activeTab"
+          class="tabs-compact"
+          density="compact"
+          slider-color="#ffd951"
+        >
+          <v-tab value="IZQ" class="tab-compact">IZQ</v-tab>
+          <v-tab value="P" class="tab-compact">PRINCIPAL</v-tab>
+          <v-tab value="DER" class="tab-compact">DER</v-tab>
+        </v-tabs>
+      </div>
+
       <div class="title-actions">
         <v-text-field
           v-model="q"
           prepend-inner-icon="mdi-magnify"
-          label="Buscar (nombre / DNI / organismo / asiento)"
+          label="Buscar (nombre / cargo / organismo / asiento)"
           hide-details
           single-line
           density="comfortable"
@@ -435,6 +448,11 @@ const people = usePeopleStore()
 
 /* ===== Helpers ===== */
 function letterFor(index) { return String.fromCharCode('A'.charCodeAt(0) + index) }
+// Remapea las letras de las filas empezando en la letra indicada (conserva orden y códigos)
+function remapLetters(rows = [], startLetter = 'A') {
+  const base = startLetter.charCodeAt(0)
+  return rows.map((r, i) => ({ ...r, letter: String.fromCharCode(base + i) }))
+}
 
 /* ===== Palcos (layout) ===== */
 const palcoMap = ref({
@@ -515,8 +533,14 @@ const palcoPrincipalRows = computed(() =>
     .filter(r => r?.codes?.length)
     .filter(r => ALLOWED_PRINCIPAL_LETTERS.has(r.letter))  // ⛔ excluye G
 )
-const palcoIzqRows       = computed(() => (palcoMap.value[2]?.rows || []).filter(r => r?.codes?.length))
-const palcoDerRows       = computed(() => (palcoMap.value[3]?.rows || []).filter(r => r?.codes?.length))
+
+// Base laterales (tal cual backend, solo filtradas)
+const palcoIzqRowsBase = computed(() => (palcoMap.value[2]?.rows || []).filter(r => r?.codes?.length))
+const palcoDerRowsBase = computed(() => (palcoMap.value[3]?.rows || []).filter(r => r?.codes?.length))
+
+// ✅ Laterales con letras correctas: IZQ = G,H,I — DER = J,K,L (ascendente de abajo hacia arriba)
+const palcoIzqRows = computed(() => remapLetters(palcoIzqRowsBase.value, 'G'))
+const palcoDerRows = computed(() => remapLetters(palcoDerRowsBase.value, 'J'))
 
 /* ======= META ======= */
 const palcoPrincipalMeta = computed(() => ({ id: 1, name: palcoMap.value[1]?.name || 'PALCO PRINCIPAL' }))
@@ -535,7 +559,7 @@ const palcoPrincipalRightRows = computed(() =>
 const headers = [
   { title: 'Asiento',   key: 'seat',      sortable: true },
   { title: 'Nombre',    key: 'name',      sortable: true },
-  { title: 'DNI',       key: 'doc',       sortable: true },
+  { title: 'Cargo',     key: 'cargo',     sortable: true },
   { title: 'Organismo', key: 'org',       sortable: true },
   { title: 'Ingreso',   key: 'presentAt', sortable: true },
 ]
@@ -550,7 +574,13 @@ const presentRowsByPalco = computed(() => {
     if (!code) return
     const pid = seatToPalcoId.value[code]
     if (!pid) return
-    acc[pid].push({ name: p.name, seat: code, org: p.org, doc: p.doc, presentAt: p.presentAt })
+    acc[pid].push({
+      name: p.name,
+      seat: code,
+      org:  p.org ?? p.organismo ?? p.organization,
+      cargo: p.cargo ?? p.role ?? p.position ?? p.cargoName ?? '',
+      presentAt: p.presentAt
+    })
   })
   Object.keys(acc).forEach(pid =>
     acc[pid].sort((a,b) => (a.presentAt || '').localeCompare(b.presentAt || ''))
@@ -572,7 +602,7 @@ const filteredRows = computed(() => {
   const needle = q.value.trim().toLowerCase()
   if (!needle) return visibleRows.value
   return visibleRows.value.filter(r =>
-    [r.name, r.doc, r.org, r.seat].filter(Boolean).join(' ').toLowerCase().includes(needle)
+    [r.name, r.cargo, r.org, r.seat].filter(Boolean).join(' ').toLowerCase().includes(needle)
   )
 })
 
@@ -623,7 +653,7 @@ function exportPDF () {
     '<tr>' +
       '<td>' + (r.seat || '') + '</td>' +
       '<td>' + String(r.name || '').replace(/</g, '&lt;') + '</td>' +
-      '<td>' + (r.doc || '') + '</td>' +
+      '<td>' + String(r.cargo || '') + '</td>' +
       '<td>' + String(r.org || '').replace(/</g, '&lt;') + '</td>' +
       '<td>' + formatDateTime(r.presentAt) + '</td>' +
     '</tr>'
@@ -636,7 +666,7 @@ function exportPDF () {
     '</head><body>' +
     '<h1>Presentes en Palco</h1>' +
     '<h2 class="muted">Palco: ' + palcoName + ' · Generado: ' + new Date().toLocaleString('es-AR') + '</h2>' +
-    '<table><thead><tr><th>Asiento</th><th>Nombre</th><th>DNI</th><th>Organismo</th><th>Ingreso</th></tr></thead><tbody>' +
+    '<table><thead><tr><th>Asiento</th><th>Nombre</th><th>Cargo</th><th>Organismo</th><th>Ingreso</th></tr></thead><tbody>' +
     htmlRows +
     '</tbody></table>' +
     '</body></html>'
@@ -652,241 +682,218 @@ function exportPDF () {
   URL.revokeObjectURL(url)
 }
 </script>
+
+
 <style scoped>
 /* ===== Card / fondo oscuro dorado ===== */
 .card-contrast {
   background: #0e1230 !important;
   border: 1px solid rgba(255, 217, 81, .14);
-  box-shadow: 0 6px 18px rgba(0,0,0,.25);
+  box-shadow: 0 3px 10px rgba(0,0,0,.25);
 }
 .title-contrast {
   background: linear-gradient(180deg, rgba(255,217,81,.06), rgba(11,13,40,0));
   border-bottom: 1px solid rgba(255,217,81,.10);
+  padding: 6px 10px !important;
+  font-size: .78rem !important;
 }
 .divider-contrast { border-color: rgba(255,217,81,.10) !important; }
-.text-dim { color: rgba(234,240,255, .75); }
+.text-dim { color: rgba(234,240,255, .7); }
 
-/* Botón EXPORTAR (ícono sutil) */
+/* Botón EXPORTAR */
 .btn-tonal {
   background: rgba(255,217,81,.12) !important;
   color: #ffd951 !important;
   border: 1px solid rgba(255,217,81,.24) !important;
 }
 .btn-icon{
-  width:34px !important; height:34px !important; min-width:34px !important;
-  border-radius:10px !important; padding:0 !important;
+  width:26px !important; height:26px !important; min-width:26px !important;
+  border-radius:7px !important; padding:0 !important;
   display:flex; align-items:center; justify-content:center;
 }
-.btn-icon :deep(.v-icon){ font-size:20px !important; }
+.btn-icon :deep(.v-icon){ font-size:16px !important; }
 
 /* ===== LEYENDA / Chips ===== */
 .chip-strong {
   background: rgba(255,217,81,.12) !important;
   color: #ffd951 !important;
   border: 1px solid rgba(255,217,81,.24) !important;
-  font-weight: 700 !important;
+  font-weight: 600 !important;
 }
 .chip-presente {
-  background: rgba(76, 175, 80, .18) !important;
+  background: rgba(76, 175, 80, .15) !important;
   color: #9be89b !important;
-  border: 1px solid rgba(76, 175, 80, .35) !important;
+  border: 1px solid rgba(76, 175, 80, .3) !important;
 }
 .chip-asignado {
-  background: rgba(255, 152, 0, .18) !important;
+  background: rgba(255, 152, 0, .15) !important;
   color: #ffda9b !important;
-  border: 1px solid rgba(255, 152, 0, .35) !important;
+  border: 1px solid rgba(255, 152, 0, .3) !important;
 }
 .chip-outline {
-  color: #eaf0ff !important; border-color: rgba(234,240,255,.28) !important;
-  background: rgba(234,240,255,.07) !important;
-  box-shadow: 0 4px 12px rgba(0,0,0,.6);
-  font-weight: 600; height: 22px; line-height: 1;
-  border-radius: 6px; padding: 0 8px; font-size: 12px; display: inline-flex;
+  color: #eaf0ff !important;
+  border-color: rgba(234,240,255,.26) !important;
+  background: rgba(234,240,255,.06) !important;
+  box-shadow: 0 3px 10px rgba(0,0,0,.5);
+  font-weight: 600;
+  height: 18px; line-height: 1;
+  border-radius: 5px;
+  padding: 0 5px; font-size: 10px;
+  display: inline-flex;
 }
-.chip-count { font-weight: 800; color: #eaf0ff !important; background: #1b5e20 !important; }
+.chip-count { font-weight: 700; color: #eaf0ff !important; background: #1b5e20 !important; }
 
-/* ===== TABS compactas (idénticas al picker) ===== */
-.palcos-tabs{ border-bottom: 1px solid rgba(255,217,81,.12); margin-bottom: 8px; }
-.tabs-compact{ overflow-x:auto; }
+/* ===== TABS compactas ===== */
+.palcos-tabs{ border-bottom: 1px solid rgba(255,217,81,.12); margin-bottom: 5px; }
 .tab-compact{
   text-transform:none !important; font-weight:700 !important;
-  font-size:.78rem !important; letter-spacing:.02em !important;
-  min-width:92px !important; padding:0 10px !important; height:34px !important;
-}
-:deep(.v-tab.v-tab--selected){
-  background: rgba(255,217,81,.18) !important;
-  box-shadow: inset 0 0 6px rgba(255,217,81,.25);
-  color:#fff3bf !important; opacity:1 !important; font-weight:800 !important;
+  font-size:.65rem !important;
+  min-width:72px !important; padding:0 6px !important; height:26px !important;
 }
 
-/* ===== LAYOUT 3 PALCOS (desktop) ===== */
-.palcos-viewport{
-  overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;
-}
-.palcos-layout{
-  display:grid; grid-template-columns:0.8fr 2.4fr 0.8fr; gap:24px; width:100%; max-width:100%;
-}
+/* ===== LAYOUT 3 PALCOS ===== */
+.palcos-viewport{ overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; }
+.palcos-layout{ display:grid; grid-template-columns:0.8fr 2.4fr 0.8fr; gap:12px; width:100%; }
 
 /* Bloques */
 .palco-block{
   background: rgba(11,13,40,.5);
   border: 1px solid rgba(255,217,81,.14);
-  border-radius: 16px;
-  box-shadow: 0 12px 32px rgba(0,0,0,.6);
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.5);
   display: flex; flex-direction: column; min-width: 0;
 }
 .palco-header{
-  padding: 12px 16px; background:#1a1d38; border-bottom:1px solid rgba(255,217,81,.18);
-  border-top-left-radius: 16px; border-top-right-radius: 16px; color:#ffd951;
-  font-size:.8rem; font-weight:600; text-transform:uppercase; letter-spacing:.03em;
+  padding: 6px 10px;
+  background:#1a1d38; border-bottom:1px solid rgba(255,217,81,.18);
+  border-top-left-radius: 10px; border-top-right-radius: 10px;
+  color:#ffd951; font-size:.68rem; font-weight:600;
   display:flex; align-items:center; justify-content:space-between;
 }
-.palco-header-inner{ display:flex; align-items:center; font-weight:600; color:#ffd951; }
-.palco-title{ line-height:1.2; }
-.palco-body{ padding:16px; overflow-x:auto; }
-.main-palco-body{ padding:0 16px 16px; background:#0f122a; }
+.palco-body{ padding:10px; overflow-x:auto; }
+.main-palco-body{ padding:0 10px 10px; background:#0f122a; }
 .palco-footer{
-  font-size:.7rem; line-height:1.2; color:rgba(234,240,255,.55);
-  border-top:1px solid rgba(255,217,81,.08); padding:8px 16px 12px;
-  text-align:center; text-transform:uppercase; letter-spacing:.05em;
+  font-size:.6rem; line-height:1.2; color:rgba(234,240,255,.55);
+  border-top:1px solid rgba(255,217,81,.08); padding:5px 10px 8px;
+  text-align:center; text-transform:uppercase; letter-spacing:.04em;
 }
 
-/* ===== Miniatura en PALCOS LATERALES ===== */
-.palco-lateral .palco-header{ padding: 9px 12px; font-size:.75rem; }
-.palco-lateral .main-palco-body{ padding: 0 12px 12px; }
-.palco-lateral .palco-footer{ padding:6px 12px 10px; font-size:.65rem; }
-.palco-lateral .grid-rows{ gap:10px; min-width:max(340px,100%); }
-.palco-lateral .row{
-  grid-template-columns:32px repeat(auto-fit, minmax(46px, 1fr));
-  gap:6px;
-}
-.palco-lateral .row-label{
-  width:32px; padding:4px 0; font-size:.7rem;
-}
-.palco-lateral .seat{
-  min-width:46px; height:28px; border-radius:14px; font-size:.68rem;
-}
-
-/* ===== GRID FILAS + ASIENTOS (desktop) ===== */
-.grid-rows-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:6px; }
-.grid-rows{ display:flex; flex-direction:column-reverse; gap:12px; min-width:max(480px,100%); }
+/* ===== GRID FILAS + ASIENTOS (base) ===== */
+.grid-rows-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:3px; }
+.grid-rows{ display:flex; flex-direction:column-reverse; gap:6px; min-width:max(380px,100%); }
 .row{
   display:grid; grid-auto-flow:column;
-  grid-template-columns:38px repeat(auto-fit, minmax(54px, 1fr));
-  gap:6px; align-items:center;
+  grid-template-columns:30px repeat(auto-fit, minmax(42px, 1fr));
+  gap:3px; align-items:center;
 }
 .row-label{
-  position:sticky; left:0; z-index:1; text-align:center; font-weight:800; color:#0b0d28;
-  background:#ffd951; border:1px solid rgba(255,217,81,.45);
-  box-shadow:0 2px 6px rgba(0,0,0,.25); border-radius:8px; padding:5px 0;
-  width:38px; font-size:.75rem; line-height:1.2;
+  position:sticky; left:0; z-index:1; text-align:center; font-weight:700; color:#0b0d28;
+  background:#ffd951; border:1px solid rgba(255,217,81,.4);
+  box-shadow:0 2px 5px rgba(0,0,0,.25);
+  border-radius:6px; padding:3px 0;
+  width:30px; font-size:.6rem; line-height:1;
 }
 .seat{
-  min-width:54px; height:32px; border-radius:16px; font-weight:700; text-transform:none;
-  box-shadow:0 1px 2px rgba(0,0,0,.25); background:#f3f5f9 !important; color:#0b0d28 !important;
-  border:0 !important; font-size:.75rem; line-height:1.2; justify-content:center; padding:0 8px;
+  min-width:42px; height:24px; border-radius:10px; font-weight:600;
+  box-shadow:0 1px 2px rgba(0,0,0,.25);
+  background:#f3f5f9 !important; color:#0b0d28 !important;
+  border:0 !important; font-size:.6rem; line-height:1;
+  justify-content:center; padding:0 4px;
 }
-.seat.present{  background:#4caf50 !important; color:#fff !important; }
+.seat.present{ background:#4caf50 !important; color:#fff !important; }
 .seat.assigned{ background:#ffb300 !important; color:#0b0d28 !important; }
 
-/* ===== PASILLO CENTRAL (VERTICAL) ===== */
+/* ===== PASILLO CENTRAL (global levemente más fino) ===== */
 .principal-split{
   display:grid;
-  grid-template-columns: 1fr 28px 1fr; /* <-- SIEMPRE vertical */
-  align-items:start; gap: 8px;
+  grid-template-columns: 1fr 18px 1fr; /* 20px -> 18px */
+  align-items:start; gap:4px;           /* 5px -> 4px */
 }
 .aisle-vert{
-  width: 100%; height: 100%; min-height: 100px;
-  border-left: 2px dashed rgba(255,217,81,.35);
-  border-right: 2px dashed rgba(255,217,81,.35);
-  border-radius: 6px;
+  width:100%; height:100%; min-height:100px;
+  border-left:2px dashed rgba(255,217,81,.35);
+  border-right:2px dashed rgba(255,217,81,.35);
+  border-radius:3px;
+}
+
+/* ======== OVERRIDES SOLO PARA PALCO PRINCIPAL (más compacto) ======== */
+.palco-principal .grid-rows{ gap:5px; min-width:max(360px,100%); }  /* 380 -> 360 */
+.palco-principal .row{
+  grid-template-columns:26px repeat(auto-fit, minmax(38px, 1fr));  /* 30/42 -> 26/38 */
+  gap:2px;
+}
+.palco-principal .row-label{
+  width:26px; font-size:.56rem; padding:2px 0; border-radius:5px;
+}
+.palco-principal .seat.v-btn{
+  min-width:38px; width:38px; height:22px;
+  font-size:.56rem; border-radius:9px; padding:0 3px;
 }
 
 /* ===== TABLA ===== */
 .table-wrap{ width:100%; overflow-x:auto; }
 .present-table :deep(thead th){
-  position: sticky; top: 0; z-index: 2;
   background:#0e1230 !important; color:#eaf0ff !important;
-  border-bottom: 1px solid rgba(255,217,81,.14) !important;
+  border-bottom:1px solid rgba(255,217,81,.14) !important;
+  font-size:.7rem !important; padding:5px 6px !important;
 }
-.present-table :deep(tbody tr:nth-child(odd)){ background: rgba(255,217,81,.03); }
-.present-table :deep(td){ border-bottom: 1px solid rgba(255,217,81,.06) !important; }
-.chip-table{ box-shadow: 0 0 0 1px rgba(255,217,81,.18) inset; }
-.font-mono{ font-variant-numeric: tabular-nums; }
-.btn-text{ color:#ffd951 !important; }
-.alert-contrast{
-  background: rgba(255,217,81,.07) !important;
-  border-color: rgba(255,217,81,.18) !important;
-  color: #ffd951 !important;
+.present-table :deep(td){
+  border-bottom:1px solid rgba(255,217,81,.06) !important;
+  font-size:.68rem !important; padding:4px 6px !important;
 }
 
-/* ===== MOBILE: Mantener formato con PASILLO VERTICAL ===== */
-@media (max-width: 900px){
-  .legend :deep(.v-chip){ height:20px; font-size:11px; }
+/* ===== MOBILE ===== */
+@media (max-width:900px){
+  .legend :deep(.v-chip){ height:16px; font-size:9.5px; padding:0 4px !important; }
 
-  /* Scroll horizontal suave en cada bloque de filas */
   .grid-rows-wrap{
     overflow-x: auto !important;
     overflow-y: hidden !important;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 6px;
+    padding-bottom: 3px;
   }
-
-  /* Mantener estructura de columnas (no cambiamos display/orientación) */
   .grid-rows{
-    gap: 10px !important;
-    min-width: max(420px, 100%) !important;
+    gap: 5px !important;
+    min-width: max(340px, 100%) !important;
   }
-
   .row{
-    /* Seguimos con etiqueta de fila + columnas A1..A3 → izquierda a derecha */
-    grid-template-columns: 32px repeat(auto-fit, minmax(52px, 1fr)) !important;
+    grid-template-columns: 24px repeat(auto-fit, minmax(38px, 1fr)) !important;
     grid-auto-flow: column !important;
     align-items: center !important;
-    gap: 6px !important;
+    gap: 3px !important;
   }
-
   .row-label{
-    width: 32px !important;
-    padding: 4px 0 !important;
-    font-size: .7rem !important;
+    width: 24px !important;
+    padding: 2px 0 !important;
+    font-size: .55rem !important;
   }
-
   .seat.v-btn{
-    min-width: 52px !important;
-    width: 52px !important;
-    height: 30px !important;
-    border-radius: 14px !important;
-    font-size: .7rem !important;
-    padding: 0 6px !important;
+    min-width: 38px !important;
+    width: 38px !important;
+    height: 22px !important;
+    border-radius: 9px !important;
+    font-size: .55rem !important;
+    padding: 0 3px !important;
   }
-
-  /* === CLAVE: pasillo central sigue vertical === */
   .principal-split{
-    grid-template-columns: 1fr 28px 1fr !important; /* NO colapsar a una sola columna */
-    align-items: start !important;
-    gap: 8px !important;
-  }
-  .aisle-vert{
-    /* Mantener bordes verticales (no líneas horizontales) */
-    height: 100% !important;
-    min-height: 100% !important;
-    border-left: 2px dashed rgba(255,217,81,.35) !important;
-    border-right: 2px dashed rgba(255,217,81,.35) !important;
-    border-top: 0 !important;
-    border-bottom: 0 !important;
+    grid-template-columns: 1fr 18px 1fr !important;
+    gap: 4px !important;
   }
 
-  /* Compat con picker embebido (si aplica) */
-  .palcos-window .row{
-    grid-template-columns: 32px repeat(auto-fit, minmax(52px, 1fr)) !important;
-    grid-auto-flow: column !important;
-    width: max-content !important;
+  /* Overrides SOLO para el principal en móvil */
+  .palco-principal .grid-rows{ gap:4px !important; min-width:max(320px,100%) !important; }
+  .palco-principal .row{
+    grid-template-columns:22px repeat(auto-fit, minmax(34px, 1fr)) !important;
+    gap:2px !important;
   }
-  .palcos-window .seat.v-btn{
-    min-width: 52px !important;
-    width: 52px !important;
+  .palco-principal .row-label{
+    width:22px !important; font-size:.52rem !important; padding:2px 0 !important;
+  }
+  .palco-principal .seat.v-btn{
+    min-width:34px !important; width:34px !important; height:20px !important;
+    font-size:.52rem !important; border-radius:8px !important; padding:0 2px !important;
   }
 }
 </style>
+
 
