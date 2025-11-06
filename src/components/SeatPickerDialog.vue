@@ -1,416 +1,652 @@
 <!-- src/components/SeatPickerDialog.vue -->
 <template>
-  <v-card rounded="xl" class="card-contrast">
-    <!-- HEADER -->
-    <v-card-title class="d-flex align-center flex-wrap gap-2 title-contrast">
-      <v-icon class="mr-2">mdi-seat</v-icon>
-      <span class="text-truncate">Seleccionar asiento</span>
+  <v-dialog v-model="internalOpen" max-width="1100" scrollable>
+    <v-card rounded="xl" class="card-contrast">
+      <!-- HEADER -->
+<v-card-title class="title-contrast seatpicker-header">
+  <div class="header-left">
+    <v-icon class="mr-2">mdi-seat</v-icon>
+    <div class="header-titles">
+      <div class="header-line1">Seleccionar asiento</div>
+      <div v-if="personName" class="header-line2">{{ personName }}</div>
+    </div>
+  </div>
 
-      <v-spacer />
+  <div class="legend d-flex align-center gap-2">
+    <v-chip label size="small" class="chip-strong chip-presente">Presente</v-chip>
+    <v-chip label size="small" class="chip-strong chip-asignado">Asignado</v-chip>
+    <v-chip variant="outlined" label size="small" class="chip-outline">Libre</v-chip>
+  </div>
+</v-card-title>
 
-      <div class="legend d-flex align-center gap-2">
-        <v-chip label size="small" class="chip-strong chip-presente">Presente</v-chip>
-        <v-chip label size="small" class="chip-strong chip-asignado">Asignado</v-chip>
-        <v-chip variant="outlined" label size="small" class="chip-outline">Libre</v-chip>
-      </div>
-    </v-card-title>
 
-    <v-card-text>
-      <div v-if="globalLoading" class="py-6 text-center text-dim">Cargando…</div>
+      <v-card-text>
+        <div v-if="globalLoading" class="py-6 text-center text-dim">
+          <v-progress-circular indeterminate size="24" class="mr-2" />
+          Cargando mapa de asientos…
+        </div>
 
-      <template v-else>
-        <!-- DESKTOP / TABLET ANCHA: IZQ | PRINCIPAL | DER -->
-        <template v-if="!smAndDown">
-          <div class="palcos-layout">
-            <!-- LATERAL IZQUIERDO (ID 2) -->
-            <section class="palco-block palco-lateral">
-              <header class="palco-header">
-                <div class="palco-header-inner">
-                  <v-icon size="18" class="mr-1">mdi-view-grid</v-icon>
-                  <span class="palco-title">{{ palcoIzqMeta.name || 'LATERAL IZQUIERDO' }}</span>
-                </div>
-              </header>
-
-              <div class="palco-body main-palco-body">
-                <div class="grid-rows-wrap">
-                  <div class="grid-rows">
-                    <div v-for="(row, rIdx) in palcoIzqRows" :key="'IZQ-'+rIdx" class="row">
-                      <div class="row-label">{{ row.letter }}</div>
-
-                      <v-btn
-                        v-for="code in row.codes"
-                        :key="code"
-                        :class="['seat', seatStatusClass(code), { 'seat-selected': selectedSeatLocal === code }]"
-                        variant="flat" size="small" :aria-label="`Asiento ${code}`"
-                        :disabled="busy" @click="selectSeat(code)"
-                      >{{ code }}</v-btn>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <footer class="palco-footer">Lateral izquierdo</footer>
-            </section>
-
-            <!-- PALCO PRINCIPAL (ID 1) -->
-            <section class="palco-block palco-principal">
-              <header class="palco-header">
-                <div class="palco-header-inner">
-                  <v-icon size="18" class="mr-1">mdi-crown-outline</v-icon>
-                  <span class="palco-title">{{ palcoPrincipalMeta.name || 'PALCO PRINCIPAL' }}</span>
-                </div>
-              </header>
-
-              <div class="palco-body main-palco-body">
-                <div class="grid-rows-wrap">
-                  <div class="grid-rows">
-                    <div v-for="(row, rIdx) in palcoPrincipalRows" :key="'P-'+rIdx" class="row">
-                      <div class="row-label">{{ row.letter }}</div>
-
-                      <v-btn
-                        v-for="code in row.codes"
-                        :key="code"
-                        :class="['seat', seatStatusClass(code), { 'seat-selected': selectedSeatLocal === code }]"
-                        variant="flat" size="small" :aria-label="`Asiento ${code}`"
-                        :disabled="busy" @click="selectSeat(code)"
-                      >{{ code }}</v-btn>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <footer class="palco-footer">Principal</footer>
-            </section>
-
-            <!-- LATERAL DERECHO (ID 3) -->
-            <section class="palco-block palco-lateral">
-              <header class="palco-header">
-                <div class="palco-header-inner">
-                  <v-icon size="18" class="mr-1">mdi-view-grid-plus</v-icon>
-                  <span class="palco-title">{{ palcoDerMeta.name || 'LATERAL DERECHO' }}</span>
-                </div>
-              </header>
-
-              <div class="palco-body main-palco-body">
-                <div class="grid-rows-wrap">
-                  <div class="grid-rows">
-                    <div v-for="(row, rIdx) in palcoDerRows" :key="'DER-'+rIdx" class="row">
-                      <div class="row-label">{{ row.letter }}</div>
-
-                      <v-btn
-                        v-for="code in row.codes"
-                        :key="code"
-                        :class="['seat', seatStatusClass(code), { 'seat-selected': selectedSeatLocal === code }]"
-                        variant="flat" size="small" :aria-label="`Asiento ${code}`"
-                        :disabled="busy" @click="selectSeat(code)"
-                      >{{ code }}</v-btn>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <footer class="palco-footer">Lateral derecho</footer>
-            </section>
-          </div>
-        </template>
-
-        <!-- MOBILE: pestañas IZQ | P | DER -->
         <template v-else>
-          <div class="palcos-tabs-wrap">
-            <v-tabs v-model="activeTab" class="palcos-tabs" density="comfortable" slider-color="#ffd951">
-              <v-tab value="IZQ" class="tab-btn">{{ palcoIzqMeta.name || 'LATERAL IZQUIERDO' }}</v-tab>
-              <v-tab value="P"   class="tab-btn">{{ palcoPrincipalMeta.name || 'PRINCIPAL' }}</v-tab>
-              <v-tab value="DER" class="tab-btn">{{ palcoDerMeta.name || 'LATERAL DERECHO' }}</v-tab>
-            </v-tabs>
+          <!-- ===== TABS (mismo diseño que SeatMap.vue) ===== -->
+          <v-tabs v-model="activeTab" class="palcos-tabs tabs-compact" grow>
+            <v-tab value="IZQ" class="tab-compact">IZQ</v-tab>
+            <v-tab value="P" class="tab-compact">PRINCIPAL</v-tab>
+            <v-tab value="DER" class="tab-compact">DER</v-tab>
+          </v-tabs>
 
-            <v-window v-model="activeTab" class="palcos-window" :touch="false">
-              <v-window-item value="IZQ" class="palco-window-item">
-                <section class="palco-block palco-lateral">
-                  <header class="palco-header">
-                    <div class="palco-header-inner">
-                      <v-icon size="18" class="mr-1">mdi-view-grid</v-icon>
-                      <span class="palco-title">{{ palcoIzqMeta.name || 'LATERAL IZQUIERDO' }}</span>
+<v-window v-model="activeTab" class="palcos-window" :touch="false">
+            <!-- === TAB IZQ === -->
+            <v-window-item value="IZQ" class="palco-window-item">
+              <section class="palco-block">
+                <header class="palco-header">
+                  <div class="palco-header-inner">
+                    <v-icon size="18" class="mr-1">mdi-view-grid</v-icon>
+                    <span class="palco-title">{{ palcoIzqMeta.name }}</span>
+                  </div>
+                </header>
+
+                <div class="palco-body">
+                  <div class="grid-rows-wrap">
+                    <div class="grid-rows">
+                      <div v-for="(row, rIdx) in palcoIzqRows" :key="'IZQ-'+rIdx" class="row">
+                        <div class="row-label">{{ row.letter }}</div>
+                        <v-btn
+                          v-for="code in row.codes"
+                          :key="code"
+                          :class="['seat', seatStatusClass(code), { 'seat-selected': selectedSeatLocal === code }]"
+                          variant="flat"
+                          size="small"
+                          :aria-label="`Asiento ${code}`"
+                          :disabled="isSeatDisabled(code)"
+                          @click="selectSeat(code)"
+                        >{{ code }}</v-btn>
+                      </div>
                     </div>
-                  </header>
-                  <div class="palco-body main-palco-body">
+                  </div>
+                </div>
+
+                <footer class="palco-footer">Lateral izquierdo (4×4)</footer>
+              </section>
+            </v-window-item>
+
+            <!-- === TAB PRINCIPAL === -->
+            <v-window-item value="P" class="palco-window-item">
+              <section class="palco-block palco-principal">
+                <header class="palco-header">
+                  <div class="palco-header-inner">
+                    <v-icon size="18" class="mr-1">mdi-crown</v-icon>
+                    <span class="palco-title">{{ palcoPrincipalMeta.name }}</span>
+                  </div>
+                </header>
+
+                <div class="palco-body main-palco-body">
+                  <div class="principal-split">
+                    <!-- IZQUIERDA -->
                     <div class="grid-rows-wrap">
                       <div class="grid-rows">
-                        <div v-for="(row, rIdx) in palcoIzqRows" :key="'IZQ-m-'+rIdx" class="row">
+                        <div v-for="(row, rIdx) in palcoPrincipalLeftRows" :key="'P-L-'+rIdx" class="row">
                           <div class="row-label">{{ row.letter }}</div>
                           <v-btn
-                            v-for="code in row.codes" :key="code"
+                            v-for="code in row.codes"
+                            :key="code"
                             :class="['seat', seatStatusClass(code), { 'seat-selected': selectedSeatLocal === code }]"
-                            variant="flat" size="small" :aria-label="`Asiento ${code}`" :disabled="busy"
+                            variant="flat"
+                            size="small"
+                            :aria-label="`Asiento ${code}`"
+                            :disabled="isSeatDisabled(code)"
+                            @click="selectSeat(code)"
+                          >{{ code }}</v-btn>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- PASILLO CENTRAL (mismo estilo) -->
+                    <div class="aisle-vert" aria-hidden="true"></div>
+
+                    <!-- DERECHA -->
+                    <div class="grid-rows-wrap">
+                      <div class="grid-rows">
+                        <div v-for="(row, rIdx) in palcoPrincipalRightRows" :key="'P-R-'+rIdx" class="row">
+                          <div class="row-label">{{ row.letter }}</div>
+                          <v-btn
+                            v-for="code in row.codes"
+                            :key="code"
+                            :class="['seat', seatStatusClass(code), { 'seat-selected': selectedSeatLocal === code }]"
+                            variant="flat"
+                            size="small"
+                            :aria-label="`Asiento ${code}`"
+                            :disabled="isSeatDisabled(code)"
                             @click="selectSeat(code)"
                           >{{ code }}</v-btn>
                         </div>
                       </div>
                     </div>
                   </div>
-                  <footer class="palco-footer">Lateral izquierdo</footer>
-                </section>
-              </v-window-item>
+                </div>
 
-              <v-window-item value="P" class="palco-window-item">
-                <section class="palco-block palco-principal">
-                  <header class="palco-header">
-                    <div class="palco-header-inner">
-                      <v-icon size="18" class="mr-1">mdi-crown-outline</v-icon>
-                      <span class="palco-title">{{ palcoPrincipalMeta.name || 'PALCO PRINCIPAL' }}</span>
-                    </div>
-                  </header>
-                  <div class="palco-body main-palco-body">
-                    <div class="grid-rows-wrap">
-                      <div class="grid-rows">
-                        <div v-for="(row, rIdx) in palcoPrincipalRows" :key="'P-m-'+rIdx" class="row">
-                          <div class="row-label">{{ row.letter }}</div>
-                          <v-btn
-                            v-for="code in row.codes" :key="code"
-                            :class="['seat', seatStatusClass(code), { 'seat-selected': selectedSeatLocal === code }]"
-                            variant="flat" size="small" :aria-label="`Asiento ${code}`" :disabled="busy"
-                            @click="selectSeat(code)"
-                          >{{ code }}</v-btn>
-                        </div>
+                <footer class="palco-footer">Pasillo central</footer>
+              </section>
+            </v-window-item>
+
+            <!-- === TAB DER === -->
+            <v-window-item value="DER" class="palco-window-item">
+              <section class="palco-block">
+                <header class="palco-header">
+                  <div class="palco-header-inner">
+                    <v-icon size="18" class="mr-1">mdi-view-grid-plus</v-icon>
+                    <span class="palco-title">{{ palcoDerMeta.name }}</span>
+                  </div>
+                </header>
+
+                <div class="palco-body">
+                  <div class="grid-rows-wrap">
+                    <div class="grid-rows">
+                      <div v-for="(row, rIdx) in palcoDerRows" :key="'DER-'+rIdx" class="row">
+                        <div class="row-label">{{ row.letter }}</div>
+                        <v-btn
+                          v-for="code in row.codes"
+                          :key="code"
+                          :class="['seat', seatStatusClass(code), { 'seat-selected': selectedSeatLocal === code }]"
+                          variant="flat"
+                          size="small"
+                          :aria-label="`Asiento ${code}`"
+                          :disabled="isSeatDisabled(code)"
+                          @click="selectSeat(code)"
+                        >{{ code }}</v-btn>
                       </div>
                     </div>
                   </div>
-                  <footer class="palco-footer">Principal</footer>
-                </section>
-              </v-window-item>
+                </div>
 
-              <v-window-item value="DER" class="palco-window-item">
-                <section class="palco-block palco-lateral">
-                  <header class="palco-header">
-                    <div class="palco-header-inner">
-                      <v-icon size="18" class="mr-1">mdi-view-grid-plus</v-icon>
-                      <span class="palco-title">{{ palcoDerMeta.name || 'LATERAL DERECHO' }}</span>
-                    </div>
-                  </header>
-                  <div class="palco-body main-palco-body">
-                    <div class="grid-rows-wrap">
-                      <div class="grid-rows">
-                        <div v-for="(row, rIdx) in palcoDerRows" :key="'DER-m-'+rIdx" class="row">
-                          <div class="row-label">{{ row.letter }}</div>
-                          <v-btn
-                            v-for="code in row.codes" :key="code"
-                            :class="['seat', seatStatusClass(code), { 'seat-selected': selectedSeatLocal === code }]"
-                            variant="flat" size="small" :aria-label="`Asiento ${code}`" :disabled="busy"
-                            @click="selectSeat(code)"
-                          >{{ code }}</v-btn>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <footer class="palco-footer">Lateral derecho</footer>
-                </section>
-              </v-window-item>
-            </v-window>
-          </div>
+                <footer class="palco-footer">Lateral derecho (4×6)</footer>
+              </section>
+            </v-window-item>
+          </v-window>
         </template>
-      </template>
-    </v-card-text>
+      </v-card-text>
 
-    <!-- FOOTER CONFIRM -->
-    <v-card-actions class="picker-footer">
-      <div class="picked-seat text-dim text-caption" v-if="selectedSeatLocal">
-        Asiento seleccionado: <b class="text-accent">{{ selectedSeatLocal }}</b>
-      </div>
-      <v-spacer />
-      <v-btn class="btn-confirm" :disabled="!selectedSeatLocal || busy" @click="confirmSelection">Confirmar</v-btn>
-    </v-card-actions>
-  </v-card>
+      <v-divider class="divider-contrast" />
+
+      <!-- FOOTER -->
+<v-card-actions class="picker-footer">
+  <div class="picker-info">
+    <v-icon size="18" class="mr-2">mdi-information-outline</v-icon>
+    <div class="picker-label">
+      <span class="picker-text">Asiento seleccionado:</span>
+      <strong v-if="selectedSeatLocal" class="picker-code">{{ selectedSeatLocal }}</strong>
+      <span v-else class="picker-none">Ninguno</span>
+    </div>
+  </div>
+
+  <div class="picker-actions">
+    <v-btn variant="outlined" class="btn-cancel" :disabled="busy" @click="close">Cancelar</v-btn>
+    <v-btn class="btn-confirm" :disabled="!selectedSeatLocal || busy" :loading="busy" @click="confirm">Confirmar</v-btn>
+  </div>
+</v-card-actions>
+
+    </v-card>
+  </v-dialog>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useDisplay } from 'vuetify'
-import { useSeatsStore } from '../stores'
-import api from '../services/api'
+import api from '@/services/api'
 
-/* === Props existentes (se mantienen) === */
+/* ===== Props / Emits ===== */
 const props = defineProps({
-  currentSeat: { type: String, default: '' },
-  startTabFromSeat: { type: Boolean, default: true },
+  modelValue: { type: Boolean, default: false },
+  currentSeat: { type: String, default: '' },   // asiento actual de la persona
+  personName: { type: String, default: '' },
+  allowAssigned: { type: Boolean, default: false }, // si querés poder tomar "assigned"
 })
-const emit = defineEmits(['select'])
+const emit = defineEmits(['update:modelValue', 'confirm'])
 
-/* Breakpoint */
+/* ===== UI ===== */
 const { smAndDown } = useDisplay()
+const internalOpen = ref(props.modelValue)
+watch(() => props.modelValue, v => (internalOpen.value = v))
+watch(internalOpen, v => emit('update:modelValue', v))
 
-/* Store */
-const store = useSeatsStore()
-
-/* Mapa de palcos (coincide con SeatMap) */
-const palcoMap = ref({
-  1: { id: 1, name: 'PALCO PRINCIPAL', rows: [] },
-  2: { id: 2, name: 'LATERAL IZQUIERDO', rows: [] },
-  3: { id: 3, name: 'LATERAL DERECHO', rows: [] },
-})
-
-const globalLoading = ref(true)
-const busy = ref(false)
-
-/* Tabs (mobile): IZQ | P | DER */
 const activeTab = ref('P')
+const busy = ref(false)
+const globalLoading = ref(true)
 
-/* Selección local */
+/* ===== Selección ===== */
 const selectedSeatLocal = ref('')
+watch(() => props.currentSeat, v => { if (!selectedSeatLocal.value) selectedSeatLocal.value = v || '' }, { immediate: true })
 
-/* Helpers (idénticos a SeatMap) */
-function transformSeatsResponse (data) {
-  const rowsOut = (data.seats || []).map(arr => ({
-    letter: arr[0]?.charAt(0) || '?',
-    codes: arr,
-  }))
-  return { id: data.palcoId, name: data.name, rows: rowsOut }
-}
-async function loadPalco (id) {
-  const { data } = await api.get(`/palcos/${id}/seats`)
-  palcoMap.value[id] = transformSeatsResponse(data)
-}
-
-/* Cargar y sincronizar preselección */
-onMounted(async () => {
-  await Promise.all([loadPalco(1), loadPalco(2), loadPalco(3), store.ensureLoaded?.()])
-  // Preselección
-  if (props.currentSeat) {
-    selectedSeatLocal.value = props.currentSeat
-    if (props.startTabFromSeat) {
-      const L = String(props.currentSeat)[0]?.toUpperCase() || ''
-      // Heurística simple (ajustá si tu backend define mapa → palco):
-      if ('ABCDEFG'.includes(L)) activeTab.value = 'P'
-      else if ('HIJKL'.includes(L)) activeTab.value = 'IZQ'
-      else if ('MNOPQRSTUVWXYZ'.includes(L)) activeTab.value = 'DER'
-    }
-  }
-  globalLoading.value = false
+/* ===== Datos (mismo modelo visual que SeatMap.vue) ===== */
+const palcoMap = ref({
+  1: { id: 1, name: 'PALCO PRINCIPAL', rows: [], status: {} },
+  2: { id: 2, name: 'PALCO IZQUIERDO', rows: [], status: {} },
+  3: { id: 3, name: 'PALCO DERECHO', rows: [], status: {} },
 })
 
-/* Computed por palco (nombres y filas) */
-const palcoPrincipalRows = computed(() => palcoMap.value[1]?.rows || [])
-const palcoIzqRows       = computed(() => palcoMap.value[2]?.rows || [])
-const palcoDerRows       = computed(() => palcoMap.value[3]?.rows || [])
-
-const palcoPrincipalMeta = computed(() => ({ id: 1, name: palcoMap.value[1]?.name || 'PALCO PRINCIPAL' }))
-const palcoIzqMeta       = computed(() => ({ id: 2, name: palcoMap.value[2]?.name || 'LATERAL IZQUIERDO' }))
-const palcoDerMeta       = computed(() => ({ id: 3, name: palcoMap.value[3]?.name || 'LATERAL DERECHO' }))
-
-/* Estado visual por asiento (igual a SeatMap) */
-function seatStatusClass (code) {
-  return store.seatStatus?.(code) || 'free'
+function letterFor(index) { return String.fromCharCode('A'.charCodeAt(0) + index) }
+function transformSeatsResponse(data) {
+  // data: { palcoId, name, seats: string[][], status: { CODE: 'present'|'assigned' } }
+  const seats = Array.isArray(data?.seats) ? data.seats : []
+  const status = data?.status || {}
+  const rowsOut = seats.map((rowArr, idx) => ({
+    letter: letterFor(idx),
+    codes: (rowArr || []).filter(Boolean),
+  }))
+  return { id: data.palcoId, name: data.name, rows: rowsOut, status }
 }
 
-/* Interacciones (se mantienen) */
-function selectSeat (code) {
-  if (busy.value) return
+async function loadPalco(pId) {
+  const { data } = await api.get(`/palcos/${pId}/seats`)
+  palcoMap.value[pId] = transformSeatsResponse(data)
+}
+async function loadAll() {
+  globalLoading.value = true
+  try { await Promise.all([1, 2, 3].map(loadPalco)) }
+  finally { globalLoading.value = false }
+}
+onMounted(loadAll)
+
+/* ===== Computed (mismo layout) ===== */
+const palcoPrincipalRows  = computed(() => palcoMap.value[1]?.rows || [])
+const palcoIzqRows        = computed(() => palcoMap.value[2]?.rows || [])
+const palcoDerRows        = computed(() => palcoMap.value[3]?.rows || [])
+const palcoPrincipalMeta  = computed(() => ({ id: 1, name: palcoMap.value[1]?.name || 'PALCO PRINCIPAL' }))
+const palcoIzqMeta        = computed(() => ({ id: 2, name: palcoMap.value[2]?.name || 'PALCO IZQUIERDO' }))
+const palcoDerMeta        = computed(() => ({ id: 3, name: palcoMap.value[3]?.name || 'PALCO DERECHO' }))
+
+/* Partimos filas del principal en dos columnas para el pasillo, imitando SeatMap.vue:
+   A/C/E a la izquierda y B/D/F a la derecha (por letra par/impar) */
+const palcoPrincipalLeftRows = computed(() =>
+  (palcoPrincipalRows.value || []).filter(r => (r.letter.charCodeAt(0) - 65) % 2 === 0)
+)
+const palcoPrincipalRightRows = computed(() =>
+  (palcoPrincipalRows.value || []).filter(r => (r.letter.charCodeAt(0) - 65) % 2 === 1)
+)
+
+/* ===== Estados / Clases (idéntico naming) ===== */
+function statusOf(code) {
+  if (!code) return ''
+  // si el asiento es el actual, lo mostramos libre/selectable
+  if (props.currentSeat && code === props.currentSeat) return ''
+  const s = palcoMap.value[1]?.status?.[code]
+        || palcoMap.value[2]?.status?.[code]
+        || palcoMap.value[3]?.status?.[code]
+        || ''
+  return s
+}
+function seatStatusClass(code) {
+  const s = statusOf(code)
+  if (s === 'present')  return 'present'
+  if (s === 'assigned') return 'assigned'
+  return '' // libre
+}
+function isSeatDisabled(code) {
+  if (!code) return true
+  const s = statusOf(code)
+  if (!s) return false // libre
+  if (s === 'assigned') return !props.allowAssigned && code !== props.currentSeat
+  if (s === 'present')  return true
+  return false
+}
+
+/* ===== Acciones ===== */
+function selectSeat(code) {
+  if (!code || isSeatDisabled(code)) return
   selectedSeatLocal.value = code
 }
-function confirmSelection () {
+function close() { internalOpen.value = false }
+async function confirm() {
   if (!selectedSeatLocal.value) return
-  emit('select', selectedSeatLocal.value)
+  busy.value = true
+  try {
+    emit('confirm', { seat: selectedSeatLocal.value })
+    internalOpen.value = false
+  } finally { busy.value = false }
 }
 </script>
 
 <style scoped>
 /* ===== Card / fondo oscuro dorado ===== */
-.card-contrast{ background:#0e1230 !important; border:1px solid rgba(255,217,81,.14); box-shadow:0 6px 18px rgba(0,0,0,.25); }
-.title-contrast{ background:linear-gradient(180deg, rgba(255,217,81,.06), rgba(11,13,40,0)); border-bottom:1px solid rgba(255,217,81,.10); }
-.text-dim{ color:rgba(234,240,255,.75); }
-.text-accent{ color:#ffd951; font-weight:700; }
-.chip-strong{ font-weight:700; color:#0b0d28 !important; }
-.chip-outline{
-  color:#eaf0ff !important; border-color:rgba(234,240,255,.28) !important;
-  background:rgba(234,240,255,.07) !important; box-shadow:0 4px 12px rgba(0,0,0,.6);
-  font-weight:600; height:24px; line-height:1; border-radius:6px; padding:0 8px; font-size:12px; display:inline-flex; align-items:center;
+.card-contrast {
+  background: #0e1230 !important;
+  border: 1px solid rgba(255, 217, 81, .14);
+  box-shadow: 0 6px 18px rgba(0,0,0,.25);
 }
-.legend :deep(.chip-strong){
-  font-weight:700; border:1px solid rgba(255,217,81,.24) !important; box-shadow:0 4px 12px rgba(0,0,0,.6);
-  height:24px; line-height:1; border-radius:6px; padding:0 8px; font-size:12px; display:inline-flex; align-items:center;
+.title-contrast {
+  background: linear-gradient(180deg, rgba(255,217,81,.06), rgba(11,13,40,0));
+  border-bottom: 1px solid rgba(255,217,81,.10);
 }
-.legend :deep(.chip-presente){ background:#4caf50 !important; color:#0b0d28 !important; }
-.legend :deep(.chip-asignado){ background:#ffb300 !important; color:#0b0d28 !important; }
+.divider-contrast { border-color: rgba(255,217,81,.10) !important; }
+.text-dim { color: rgba(234,240,255, .75); }
 
-/* === LAYOUT 3 COLUMNAS === */
-.palcos-layout{ display:grid; grid-template-columns:minmax(200px,1fr) minmax(320px,2fr) minmax(200px,1fr); gap:16px; }
-@media (max-width:900px){ .palcos-layout{ grid-template-columns:1fr; } }
+/* Botón tonito dorado (coincide con SeatMap.vue) */
+.btn-tonal {
+  background: rgba(255,217,81,.12) !important;
+  color: #ffd951 !important;
+  border: 1px solid rgba(255,217,81,.24) !important;
+}
 
-.palco-block{
-  background:rgba(11,13,40,.5); border:1px solid rgba(255,217,81,.14); border-radius:16px;
-  box-shadow:0 12px 32px rgba(0,0,0,.6); display:flex; flex-direction:column; min-width:0;
+/* ===== LEYENDA ===== */
+.chip-strong {
+  background: rgba(255,217,81,.12) !important;
+  color: #ffd951 !important;
+  border: 1px solid rgba(255,217,81,.24) !important;
+}
+.chip-presente {
+  background: rgba(76, 175, 80, .18) !important;
+  color: #9be89b !important;
+  border: 1px solid rgba(76, 175, 80, .35) !important;
+}
+.chip-asignado {
+  background: rgba(255, 152, 0, .18) !important;
+  color: #ffda9b !important;
+  border: 1px solid rgba(255, 152, 0, .35) !important;
+}
+.chip-outline {
+  color: #eaf0ff !important;
+  border-color: rgba(234,240,255,.35) !important;
+}
+
+/* ===== TABS ===== */
+.palcos-tabs{
+  border-bottom: 1px solid rgba(255,217,81,.12);
+  margin-bottom: 8px;
+}
+.tabs-compact{ overflow-x:auto; }
+.tab-compact{
+  text-transform:none !important; font-weight:700 !important;
+  font-size:.78rem !important; letter-spacing:.02em !important;
+  min-width:92px !important; padding:0 10px !important; height:34px !important;
+}
+:deep(.v-tab.v-tab--selected){
+  background: rgba(255,217,81,.18) !important;
+  box-shadow: inset 0 0 6px rgba(255,217,81,.25);
+  color:#fff3bf !important; opacity:1 !important; font-weight:800 !important;
+}
+
+/* ===== LAYOUT Y GRILLA ===== */
+.palco-block {
+  border: 1px dashed rgba(255,217,81,.15);
+  border-radius: 16px;
+  padding: 10px 12px 14px;
+  background: rgba(7,9,28,.35);
 }
 .palco-header{
-  padding:12px 16px; background:#1a1d38; border-bottom:1px solid rgba(255,217,81,.18);
-  border-top-left-radius:16px; border-top-right-radius:16px; color:#ffd951; font-size:.8rem; font-weight:600; text-transform:uppercase; letter-spacing:.03em;
-  display:flex; align-items:center; justify-content:space-between;
+  display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;
 }
-.palco-header-inner{ display:flex; align-items:center; font-weight:600; color:#ffd951; }
-.palco-title{ line-height:1.2; }
-.palco-body{ padding:16px; overflow-x:auto; }
-.main-palco-body{ padding:0 16px 16px; background:#0f122a; }
+.palco-header-inner{ display:flex; align-items:center; font-weight:700; letter-spacing:.2px; }
+.palco-title{ font-weight:800; }
 .palco-footer{
-  font-size:.7rem; line-height:1.2; color:rgba(234,240,255,.55); border-top:1px solid rgba(255,217,81,.08);
-  padding:8px 16px 12px; text-align:right; text-transform:uppercase; letter-spacing:.05em;
+  margin-top:8px; border-top:1px dashed rgba(255,217,81,.12);
+  padding-top:8px; font-size:.85rem; opacity:.7; text-align:center;
 }
 
-/* === TABS (mobile) === */
-.palcos-tabs-wrap{ display:flex; flex-direction:column; gap:12px; }
-.palcos-tabs{
-  background:rgba(11,13,40,.6); border:1px solid rgba(255,217,81,.24); border-radius:12px; box-shadow:0 10px 24px rgba(0,0,0,.7); overflow:hidden;
-}
-.tab-btn{
-  text-transform:none; font-weight:600; font-size:.8rem; letter-spacing:.03em; color:#ffd951 !important; transition:all .25s ease; opacity:.85;
-}
-.tab-btn:hover,.tab-btn:focus-visible{ background:rgba(255,217,81,.1) !important; color:#ffdc60 !important; opacity:1; }
-.palcos-window{ background:transparent; }
-
-/* === GRID FILAS + ASIENTOS === */
-.grid-rows-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:6px; }
-.grid-rows{ display:flex; flex-direction:column-reverse; gap:12px; min-width:max(480px,100%); }
+.grid-rows-wrap{ overflow:auto; }
+.grid-rows{ display:grid; gap:6px; width:100%; }
 .row{
-  display:grid; grid-auto-flow:column; grid-template-columns:44px repeat(auto-fit, minmax(60px, 1fr));
-  gap:8px; align-items:center;
+  display:grid; grid-auto-flow:column;
+  grid-template-columns:38px repeat(auto-fit, minmax(54px, 1fr));
+  gap:6px; align-items:center;
 }
 .row-label{
-  position:sticky; left:0; z-index:1; text-align:center; font-weight:800; color:#0b0d28; background:#ffd951; border:1px solid rgba(255,217,81,.45);
-  box-shadow:0 2px 6px rgba(0,0,0,.25); border-radius:10px; padding:6px 0; width:44px; font-size:.8rem; line-height:1.2;
+  position:sticky; left:0; z-index:1; text-align:center; font-weight:800; color:#0b0d28;
+  background:#ffd951; border:1px solid rgba(255,217,81,.45);
+  box-shadow:0 2px 6px rgba(0,0,0,.25); border-radius:8px; padding:5px 0;
+  width:38px; font-size:.75rem; line-height:1.2;
 }
-
-/* Estados / “píldoras” asiento */
 .seat{
-  min-width:58px; height:36px; border-radius:18px; font-weight:700; text-transform:none;
-  box-shadow:0 1px 2px rgba(0,0,0,.25); background:#f3f5f9 !important; color:#0b0d28 !important; border:0 !important;
-  font-size:.8rem; line-height:1.2; justify-content:center;
+  min-width:54px; height:32px; border-radius:16px; font-weight:700; text-transform:none;
+  box-shadow:0 1px 2px rgba(0,0,0,.25); background:#f3f5f9 !important; color:#0b0d28 !important;
+  border:0 !important; font-size:.75rem; line-height:1.2; justify-content:center; padding:0 8px;
 }
 .seat.present{ background:#4caf50 !important; color:#fff !important; }
 .seat.assigned{ background:#ffb300 !important; color:#0b0d28 !important; }
-.seat.free{ background:#f3f5f9 !important; color:#0b0d28 !important; }
 
-/* selección */
-.seat.seat-selected{ outline:2px solid #ffd951; box-shadow:0 0 8px rgba(255,217,81,.75); }
-
-/* responsive fino */
-@media (max-width:600px){
-  .legend :deep(.v-chip){ height:22px; font-size:11px; }
-  .grid-rows{ gap:10px; min-width:max(400px,100%); }
-  .row{ grid-template-columns:36px repeat(auto-fit, minmax(54px, 1fr)); gap:6px; }
-  .row-label{ width:36px; padding:4px 0; font-size:.7rem; }
-  .seat{ min-width:54px; height:32px; border-radius:16px; font-size:.8rem; }
+/* (opcional) marca selección dentro del mismo estilo */
+.seat-selected{
+  outline: 2px solid #ffd951; box-shadow: 0 0 0 3px rgba(255,217,81,.18);
 }
 
-/* Footer confirm */
+/* PASILLO CENTRAL PRINCIPAL (split vertical) */
+.principal-split{ display:grid; grid-template-columns: 1fr 28px 1fr; align-items:start; gap: 8px; }
+.aisle-vert{
+  width: 100%; height: 100%; min-height: 100px;
+  border-left: 2px dashed rgba(255,217,81,.35);
+  border-right: 2px dashed rgba(255,217,81,.35);
+  border-radius: 6px;
+}
+
+/* ===== Responsivo: en tabs mostramos filas como carrusel ancho ===== */
+@media (max-width: 600px){
+  /* refuerzos dentro de tabs/window */
+  .palcos-window .row{
+    grid-template-columns: 32px !important;
+    grid-auto-flow: column !important;
+    grid-auto-columns: 52px !important;
+    width: max-content !important;
+  }
+  .palcos-window .seat.v-btn{
+    min-width: 52px !important;
+    width: 52px !important;
+  }
+}
+
+
+/* ===== Footer Selector Mejorado ===== */
+.picker-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(15,18,45,.65);
+  border-top: 1px solid rgba(255,217,81,.10);
+  padding: 12px 20px;
+  border-radius: 0 0 18px 18px;
+}
+
+.picker-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(234,240,255,.8);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.picker-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.picker-text {
+  opacity: 0.85;
+  font-weight: 400;
+}
+
+.picker-code {
+  color: #ffd951;
+  font-weight: 800;
+  letter-spacing: .3px;
+}
+
+.picker-none {
+  color: rgba(234,240,255,.5);
+  font-style: italic;
+}
+
+.picker-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-cancel {
+  color: rgba(234,240,255,.75) !important;
+  border: 1px solid rgba(234,240,255,.25) !important;
+  background: rgba(255,255,255,.03) !important;
+  font-weight: 600 !important;
+  text-transform: none !important;
+}
+
+.btn-cancel:hover {
+  background: rgba(234,240,255,.08) !important;
+}
+
+.btn-confirm {
+  background: #ffd951 !important;
+  color: #0b0d28 !important;
+  font-weight: 800 !important;
+  text-transform: none !important;
+  box-shadow: 0 0 10px rgba(255,217,81,.25);
+}
+
+.btn-confirm:hover {
+  background: #ffe87a !important;
+}
+
+
+/* ==== Fix: Footer texto en una sola línea, sin cortes ==== */
 .picker-footer{
-  background:rgba(11,13,40,.6); border-top:1px solid rgba(255,217,81,.24);
-  box-shadow:0 -8px 24px rgba(0,0,0,.8); padding:16px 20px !important;
-  border-bottom-left-radius:12px; border-bottom-right-radius:12px; display:flex; flex-wrap:wrap; align-items:center; gap:12px;
+  flex-wrap: nowrap;
 }
-.picked-seat{ font-weight:600; font-size:.8rem; line-height:1.3; color:rgba(234,240,255,.8); }
-.btn-confirm{
-  background:#ffd951 !important; color:#0b0d28 !important; font-weight:800 !important; text-transform:none !important; letter-spacing:.02em;
-  border-radius:10px !important; min-width:120px !important; min-height:40px !important;
-  box-shadow:0 10px 24px rgba(0,0,0,.8), 0 0 10px rgba(255,217,81,.6); border:1px solid rgba(255,217,81,.4) !important;
-  font-size:.9rem !important; line-height:1.2 !important;
+
+.picker-info{
+  flex: 1 1 auto;            /* ocupa el espacio disponible */
+  min-width: 0;              /* permite encoger sin romper */
+  display: flex;
+  align-items: baseline;     /* alinea “Asiento” y el código por la línea base */
+  gap: 8px;
 }
-.btn-confirm.v-btn--disabled{
-  background:rgba(255,255,255,.08) !important; color:rgba(234,240,255,.3) !important; box-shadow:none !important; border:1px solid rgba(255,255,255,.12) !important;
+
+.picker-label{
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;       /* evita el salto de línea */
 }
+
+.picker-text{
+  white-space: nowrap;
+  line-height: 1.1;
+}
+
+.picker-code{
+  white-space: nowrap;
+  line-height: 1.1;
+}
+
+/* Botonera: que no empuje el texto a la 2da línea */
+.picker-actions{
+  flex: 0 0 auto;
+}
+
+/* Opcional: en pantallas muy angostas, apilamos prolijo */
+@media (max-width: 420px){
+  .picker-footer{ flex-wrap: wrap; row-gap: 8px; }
+  .picker-info{ flex: 1 1 100%; order: 1; }
+  .picker-actions{ order: 2; width: 100%; justify-content: flex-end; }
+}
+
+/* ===== HEADER SEAT PICKER ===== */
+.seatpicker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0; /* evita overflow */
+}
+
+.header-titles {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.header-main {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 360px; /* controla el truncamiento elegante */
+}
+
+.header-person {
+  color: #ffd951;
+  font-weight: 700;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+/* responsive */
+@media (max-width: 500px){
+  .header-main { max-width: 220px; font-size: 0.95rem; }
+}
+
+/* ===== HEADER SEAT PICKER (doble línea) ===== */
+.seatpicker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.header-titles {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  min-width: 0;
+}
+
+.header-line1 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.header-line2 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffd951;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+.legend {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* responsive */
+@media (max-width: 500px) {
+  .seatpicker-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .legend {
+    margin-top: 4px;
+  }
+}
+
 </style>

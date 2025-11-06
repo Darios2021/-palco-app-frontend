@@ -296,6 +296,7 @@
     </div>
 
     <!-- ===== MODALES ===== -->
+    <!-- CONFIRMAR LIBERACIÓN -->
     <v-dialog v-model="confirmRelease" max-width="420">
       <v-card rounded="xl" class="modal-card">
         <v-card-title class="pt-4 pb-0 modal-title">
@@ -316,16 +317,16 @@
       </v-card>
     </v-dialog>
 
-    <v-dialog
+    <!-- SELECCIONAR ASIENTO -->
+    <SeatPickerDialog
       v-model="seatPickerOpen"
-      :fullscreen="isMobile"
-      :max-width="isMobile ? undefined : 960"
-      scrollable
-      class="seat-dialog"
-    >
-      <SeatPickerDialog @select="onSeatPicked" />
-    </v-dialog>
+      :person-name="selected?.title || ''"
+      :current-seat="selectedSeatCode || ''"
+      :allow-assigned="false"
+      @confirm="onSeatPicked"
+    />
 
+    <!-- CREAR PERSONA -->
     <v-dialog
       v-model="createPersonOpen"
       :fullscreen="isMobile"
@@ -339,7 +340,7 @@
       />
     </v-dialog>
 
-    <!-- MODAL EDITAR -->
+    <!-- EDITAR PERSONA -->
     <v-dialog
       v-model="editPersonOpen"
       :fullscreen="isMobile"
@@ -355,6 +356,7 @@
       />
     </v-dialog>
 
+    <!-- SNACKBAR -->
     <v-snackbar
       v-model="snackbar.show"
       :timeout="3000"
@@ -583,15 +585,15 @@ function hideToast(){ snackbar.value.show = false }
 
 /* ===== SEAT PICKER ===== */
 function openSeatPicker(){ seatPickerOpen.value = true }
-async function onSeatPicked(newSeat) {
+async function onSeatPicked({ seat }) {
   if (!selectedId.value) { showToast('Seleccioná una persona', false); seatPickerOpen.value = false; return }
-  if (!newSeat) { showToast('Seleccioná un asiento', false); seatPickerOpen.value = false; return }
+  if (!seat) { showToast('Seleccioná un asiento', false); seatPickerOpen.value = false; return }
   assigning.value = true
   try {
     const targetId = selectedId.value
-    const other = store.people.find(p => p.id !== targetId && (p.seat === newSeat || p.seatCode === newSeat || p.seat_code === newSeat))
+    const other = store.people.find(p => p.id !== targetId && (p.seat === seat || p.seatCode === seat || p.seat_code === seat))
     if (other) await store.updatePerson(other.id, { seat: null })
-    await store.updatePerson(targetId, { seat: newSeat })
+    await store.updatePerson(targetId, { seat })
     await refreshStore(); syncFromStoreById(targetId)
     showToast('Asiento asignado', true)
   } catch { showToast('Error al asignar asiento', false) }
@@ -668,7 +670,6 @@ function openEditPerson () {
   if (!selectedId.value) { showToast('Seleccioná una persona', false); return }
   const fresh = (store.people ?? []).find(p => p.id == selectedId.value)
   if (!fresh) { showToast('No se pudo cargar la persona', false); return }
-  // Clon para no mutar el store por ref superficial
   editablePerson.value = JSON.parse(JSON.stringify(fresh))
   editPersonOpen.value = true
 }
