@@ -57,7 +57,7 @@
                 <footer class="palco-footer">Sector lateral izquierdo (4×4)</footer>
               </section>
 
-              <!-- PALCO PRINCIPAL (grilla con pasillo central) -->
+              <!-- PALCO PRINCIPAL -->
               <section class="palco-block palco-principal">
                 <header class="palco-header">
                   <div class="palco-header-inner">
@@ -68,7 +68,7 @@
 
                 <div class="palco-body main-palco-body">
                   <div class="principal-split">
-                    <!-- IZQUIERDA: E, C, A (de arriba a abajo) -->
+                    <!-- IZQUIERDA: E, C, A -->
                     <div class="grid-rows-wrap">
                       <div class="grid-rows">
                         <div v-for="(row, rIdx) in palcoPrincipalLeftRows" :key="'P-L-'+rIdx" class="row">
@@ -88,7 +88,7 @@
 
                     <div class="aisle-vert" aria-hidden="true"></div>
 
-                    <!-- DERECHA: F, D, B (de arriba a abajo) -->
+                    <!-- DERECHA: F, D, B -->
                     <div class="grid-rows-wrap">
                       <div class="grid-rows">
                         <div v-for="(row, rIdx) in palcoPrincipalRightRows" :key="'P-R-'+rIdx" class="row">
@@ -162,7 +162,7 @@
             </v-tabs>
 
             <v-window v-model="activeTab" class="palcos-window" :touch="false">
-              <!-- TAB IZQ -->
+              <!-- IZQ -->
               <v-window-item value="IZQ" class="palco-window-item">
                 <section class="palco-block palco-lateral">
                   <header class="palco-header">
@@ -195,7 +195,7 @@
                 </section>
               </v-window-item>
 
-              <!-- TAB PRINCIPAL -->
+              <!-- PRINCIPAL -->
               <v-window-item value="P" class="palco-window-item">
                 <section class="palco-block palco-principal">
                   <header class="palco-header">
@@ -207,7 +207,7 @@
 
                   <div class="palco-body main-palco-body">
                     <div class="principal-split">
-                      <!-- IZQUIERDA: E, C, A -->
+                      <!-- IZQ: E,C,A -->
                       <div class="grid-rows-wrap">
                         <div class="grid-rows">
                           <div v-for="(row, rIdx) in palcoPrincipalLeftRows" :key="'P-L-m-'+rIdx" class="row">
@@ -227,7 +227,7 @@
 
                       <div class="aisle-vert" aria-hidden="true"></div>
 
-                      <!-- DERECHA: F, D, B -->
+                      <!-- DER: F,D,B -->
                       <div class="grid-rows-wrap">
                         <div class="grid-rows">
                           <div v-for="(row, rIdx) in palcoPrincipalRightRows" :key="'P-R-m-'+rIdx" class="row">
@@ -251,7 +251,7 @@
                 </section>
               </v-window-item>
 
-              <!-- TAB DER -->
+              <!-- DER -->
               <v-window-item value="DER" class="palco-window-item">
                 <section class="palco-block palco-lateral">
                   <header class="palco-header">
@@ -290,7 +290,7 @@
     </v-card-text>
   </v-card>
 
-  <!-- === TABLA: PRESENTES EN EL PALCO (SIN TABS ABAJO) === -->
+  <!-- === TABLA: PRESENTES EN EL PALCO === -->
   <v-card rounded="xl" elevation="2" class="card-contrast">
     <v-card-title class="d-flex flex-wrap align-start gap-2 title-contrast">
       <div class="d-flex align-center flex-wrap gap-2">
@@ -314,7 +314,6 @@
           density="comfortable"
           class="search-input"
         />
-
         <v-btn
           variant="tonal"
           size="small"
@@ -422,17 +421,19 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useDisplay } from 'vuetify'
-import { useSeatsStore } from '../stores'
-import api from '../services/api'
+import { useSeatsStore } from '@/stores/seatsStore'
+import { usePeopleStore } from '@/stores/peopleStore'
+import api from '@/services/api'
 
-/* ===== Breakpoint ===== */
+/* ===== Breakpoints ===== */
 const { smAndDown } = useDisplay()
 const { smAndDown: smForTable } = useDisplay()
 
-/* ===== Store ===== */
-const store = useSeatsStore()
+/* ===== Stores ===== */
+const seats = useSeatsStore()
+const people = usePeopleStore()
 
-/* ===== Palcos ===== */
+/* ===== Palcos (layout) ===== */
 const palcoMap = ref({
   1: { id: 1, name: 'PALCO PRINCIPAL', rows: [] },
   2: { id: 2, name: 'PALCO IZQUIERDO', rows: [] },
@@ -440,8 +441,6 @@ const palcoMap = ref({
 })
 
 const globalLoading = ref(true)
-
-/* Tabs (únicas) */
 const activeTab = ref('P') // IZQ | P | DER
 
 function transformSeatsResponse (data) {
@@ -457,7 +456,7 @@ async function loadPalco (palcoId) {
   palcoMap.value[palcoId] = transformSeatsResponse(data)
 }
 
-/* seat → palcoId */
+/* seat -> palcoId */
 const seatToPalcoId = ref({})
 function rebuildSeatToPalco () {
   const map = {}
@@ -470,7 +469,12 @@ function rebuildSeatToPalco () {
 
 /* Load inicial */
 onMounted(async () => {
-  await Promise.all([loadPalco(1), loadPalco(2), loadPalco(3), store.ensureLoaded()])
+  // 1) Garantizar wiring y datos base en el store (idempotente)
+  await seats.ensureLoaded().catch(() => {})
+
+  // 2) Cargar layout de los 3 palcos usados por este componente
+  await Promise.all([loadPalco(1), loadPalco(2), loadPalco(3)])
+
   rebuildSeatToPalco()
   globalLoading.value = false
 })
@@ -481,22 +485,11 @@ const palcoIzqRows       = computed(() => palcoMap.value[2]?.rows || [])
 const palcoDerRows       = computed(() => palcoMap.value[3]?.rows || [])
 
 /* ======= META ======= */
-const palcoPrincipalMeta = computed(() => ({
-  id: 1,
-  name: palcoMap.value[1]?.name || 'PALCO PRINCIPAL',
-}))
-const palcoIzqMeta = computed(() => ({
-  id: 2,
-  name: palcoMap.value[2]?.name || 'PALCO IZQUIERDO',
-}))
-const palcoDerMeta = computed(() => ({
-  id: 3,
-  name: palcoMap.value[3]?.name || 'PALCO DERECHO',
-}))
+const palcoPrincipalMeta = computed(() => ({ id: 1, name: palcoMap.value[1]?.name || 'PALCO PRINCIPAL' }))
+const palcoIzqMeta       = computed(() => ({ id: 2, name: palcoMap.value[2]?.name || 'PALCO IZQUIERDO' }))
+const palcoDerMeta       = computed(() => ({ id: 3, name: palcoMap.value[3]?.name || 'PALCO DERECHO' }))
 
-/* ===== PALCO PRINCIPAL: orden solicitado =====
-   Izquierda (ARRIBA→ABAJO): E, C, A
-   Derecha   (ARRIBA→ABAJO): F, D, B                                   */
+/* ===== Orden PALCO PRINCIPAL ===== */
 const LETTERS_LEFT  = ['E','C','A']
 const LETTERS_RIGHT = ['F','D','B']
 
@@ -514,7 +507,7 @@ const palcoPrincipalRightRows = computed(() => {
     .sort((a,b) => LETTERS_RIGHT.indexOf(a.letter.toUpperCase()) - LETTERS_RIGHT.indexOf(b.letter.toUpperCase()))
 })
 
-/* ===== Tabla de presentes ===== */
+/* ===== Tabla de presentes (usa peopleStore directo) ===== */
 const headers = [
   { title: 'Asiento',   key: 'seat',      sortable: true },
   { title: 'Nombre',    key: 'name',      sortable: true },
@@ -522,17 +515,20 @@ const headers = [
   { title: 'Organismo', key: 'org',       sortable: true },
   { title: 'Ingreso',   key: 'presentAt', sortable: true },
 ]
+
 const tabToPalcoId = { IZQ: 2, P: 1, DER: 3 }
 
 const presentRowsByPalco = computed(() => {
   const acc = { 1: [], 2: [], 3: [] }
-  store.people.forEach(p => {
+  ;(people.list || []).forEach(p => {
     if (!p.present) return
-    const pid = seatToPalcoId.value[p.seat]
+    const code = p.seat ?? p.seatCode ?? p.seat_code
+    if (!code) return
+    const pid = seatToPalcoId.value[code]
     if (!pid) return
-    acc[pid].push({ name: p.name, seat: p.seat, org: p.org, doc: p.doc, presentAt: p.presentAt })
+    acc[pid].push({ name: p.name, seat: code, org: p.org, doc: p.doc, presentAt: p.presentAt })
   })
-  Object.keys(acc).forEach(pid => acc[pid].sort((a, b) => (a.presentAt || '').localeCompare(b.presentAt || '')))
+  Object.keys(acc).forEach(pid => acc[pid].sort((a,b) => (a.presentAt || '').localeCompare(b.presentAt || '')))
   return acc
 })
 
@@ -558,21 +554,20 @@ const filteredRows = computed(() => {
 const tableHeight  = computed(() => (smForTable.value ? 340 : 420))
 const itemsPerPage = computed(() => (smForTable.value ? 10  : 25))
 
-/* Estado visual por asiento */
+/* Estado visual por asiento (viene del seatsStore.statusAll) */
 function seatStatusClass (code) {
-  return store.seatStatus?.(code) || 'free'
+  return seats.seatStatus?.(code) || 'free'  // valores: 'present' | 'assigned' | 'free'
 }
 
 /* Modal detalle asiento */
 const dialog = ref(false)
 const currentSeat = ref(null)
-const holder = computed(() => currentSeat.value ? store.seatHolder(currentSeat.value) : null)
-const currentStatus = computed(() => currentSeat.value ? (store.seatStatus(currentSeat.value) || 'free') : 'free')
+const holder = computed(() => currentSeat.value ? seats.seatHolder(currentSeat.value) : null)
+const currentStatus = computed(() => currentSeat.value ? (seats.seatStatus(currentSeat.value) || 'free') : 'free')
 function openSeat (code) { currentSeat.value = code; dialog.value = true }
 
 /* Utils */
 const initials = (name = '') => String(name).trim().split(/\s+/).slice(0, 2).map(s => s[0]?.toUpperCase() || '').join('')
-
 function formatDateTime (iso, compact = false) {
   if (!iso) return '—'
   try {
@@ -584,7 +579,7 @@ function formatDateTime (iso, compact = false) {
   } catch { return iso }
 }
 
-/* ===== Export: descarga directa sin imprimir ===== */
+/* Export HTML (misma lógica que tenías) */
 function exportPDF () {
   const rows = filteredRows.value
   if (!rows.length) { alert('No hay datos para exportar.'); return }
@@ -684,7 +679,6 @@ function exportPDF () {
   overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;
 }
 .palcos-layout{
-  /* Laterales más angostos, principal más ancho */
   display:grid; grid-template-columns:0.8fr 2.4fr 0.8fr; gap:24px; width:100%; max-width:100%;
 }
 
@@ -728,7 +722,7 @@ function exportPDF () {
   min-width:46px; height:28px; border-radius:14px; font-size:.68rem;
 }
 
-/* GRID FILAS + ASIENTOS (desktop, por defecto) */
+/* GRID FILAS + ASIENTOS (desktop) */
 .grid-rows-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:6px; }
 .grid-rows{ display:flex; flex-direction:column-reverse; gap:12px; min-width:max(480px,100%); }
 .row{
@@ -747,10 +741,10 @@ function exportPDF () {
   box-shadow:0 1px 2px rgba(0,0,0,.25); background:#f3f5f9 !important; color:#0b0d28 !important;
   border:0 !important; font-size:.75rem; line-height:1.2; justify-content:center; padding:0 8px;
 }
-.seat.present{ background:#4caf50 !important; color:#fff !important; }
+.seat.present{  background:#4caf50 !important; color:#fff !important; }
 .seat.assigned{ background:#ffb300 !important; color:#0b0d28 !important; }
 
-/* PASILLO CENTRAL PRINCIPAL (split vertical) */
+/* PASILLO CENTRAL */
 .principal-split{ display:grid; grid-template-columns: 1fr 28px 1fr; align-items:start; gap: 8px; }
 .aisle-vert{
   width: 100%; height: 100%; min-height: 100px;
@@ -770,7 +764,6 @@ function exportPDF () {
 .present-table :deep(td){ border-bottom: 1px solid rgba(255,217,81,.06) !important; }
 .chip-table{ box-shadow: 0 0 0 1px rgba(255,217,81,.18) inset; }
 .font-mono{ font-variant-numeric: tabular-nums; }
-
 .btn-text{ color:#ffd951 !important; }
 .alert-contrast{
   background: rgba(255,217,81,.07) !important;
@@ -778,7 +771,7 @@ function exportPDF () {
   color: #ffd951 !important;
 }
 
-/* ===== MOBILE: igual que antes ===== */
+/* ===== MOBILE ===== */
 @media (max-width: 900px){
   .legend :deep(.v-chip){ height:20px; font-size:11px; }
 
@@ -788,7 +781,6 @@ function exportPDF () {
     -webkit-overflow-scrolling: touch;
     padding-bottom: 6px;
   }
-
   .grid-rows{
     display: flex !important;
     flex-direction: column !important;
@@ -796,7 +788,6 @@ function exportPDF () {
     min-width: 100% !important;
     overflow: visible !important;
   }
-
   .row{
     display: grid !important;
     grid-template-columns: 32px !important;
@@ -806,13 +797,11 @@ function exportPDF () {
     gap: 6px !important;
     width: max-content !important;
   }
-
   .row-label{
     position: sticky !important;
     left: 0; z-index: 1;
     width: 32px !important; padding: 4px 0 !important; font-size:.7rem !important;
   }
-
   .seat.v-btn{
     min-width: 52px !important;
     width: 52px !important;
@@ -821,7 +810,6 @@ function exportPDF () {
     font-size: .7rem !important;
     padding: 0 6px !important;
   }
-
   .principal-split{ grid-template-columns: 1fr !important; }
   .aisle-vert{
     height: 18px !important; min-height: 18px !important;
@@ -829,7 +817,6 @@ function exportPDF () {
     border-top: 2px dashed rgba(255,217,81,.35) !important;
     border-bottom: 2px dashed rgba(255,217,81,.35) !important;
   }
-
   .palcos-window .row{
     grid-template-columns: 32px !important;
     grid-auto-flow: column !important;

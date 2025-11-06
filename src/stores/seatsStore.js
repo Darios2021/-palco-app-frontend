@@ -10,10 +10,11 @@ export const useSeatsStore = defineStore('seats', {
     palcos: [],            // [{id, name}]
     currentPalcoId: 1,     // Palco por defecto
     mapa: null,            // { palcoId, name, rows, cols, seats[][], status? }
-    statusAll: {},         // { [seatCode]: 'free'|'assigned'|'present' } <-- GLOBAL
+    statusAll: {},         // { [seatCode]: 'free'|'assigned'|'present' }  <-- GLOBAL y reactivo
     error: null,
 
-    _wired: false,         // para no duplicar suscripciones
+    _wired: false,         // evita duplicar suscripciones
+    _loadedOnce: false,
   }),
 
   getters: {
@@ -23,11 +24,7 @@ export const useSeatsStore = defineStore('seats', {
       const statusMap = state.mapa.status || {}
       state.mapa.seats.forEach((fila, rIdx) => {
         fila.forEach((code, cIdx) => {
-          out.push({
-            code,
-            status: statusMap[code] || 'free',
-            rIdx, cIdx,
-          })
+          out.push({ code, status: statusMap[code] || 'free', rIdx, cIdx })
         })
       })
       return out
@@ -36,10 +33,16 @@ export const useSeatsStore = defineStore('seats', {
     /* Estado por asiento – usa el mapa GLOBAL para soportar todos los palcos */
     seatStatus: (state) => (code) => state.statusAll?.[code] || 'free',
 
-    /* Holder por asiento – resuelve contra peopleStore */
+    /* Holder por asiento – consulta directo al peopleStore */
     seatHolder: () => (code) => {
       const people = usePeopleStore()
-      return (people.list || []).find(p => p.seat === code) || null
+      return (people.list || []).find(p => (p.seat ?? p.seatCode ?? p.seat_code) === code) || null
+    },
+
+    /* SOLO compat: lista de personas expuesta (para componentes que la lean del seatsStore) */
+    peopleList() {
+      const people = usePeopleStore()
+      return people.list || []
     },
 
     statusOf() {
@@ -56,7 +59,7 @@ export const useSeatsStore = defineStore('seats', {
       // 1) Sync inicial
       this._rebuildStatusFromPeople(people.list)
 
-      // 2) Cualquier cambio en people.list (mutaciones profundas)
+      // 2) Cualquier cambio en people.list (cambios profundos incluidos)
       people.$subscribe((_mutation, state) => {
         this._rebuildStatusFromPeople(state.list)
       }, { detached: true })
@@ -64,7 +67,7 @@ export const useSeatsStore = defineStore('seats', {
       // 3) Reaccionar a acciones típicas que tocan presencia/asientos
       const touchNames = new Set([
         'fetchAll', 'createPerson', 'updatePerson',
-        'checkIn', 'assignSeat', 'unassignSeat', 'bulkCheckIn'
+        'checkIn', 'setPresent', 'assignSeat', 'unassignSeat', 'bulkCheckIn'
       ])
       people.$onAction(({ name, after }) => {
         if (!touchNames.has(name)) return
@@ -74,23 +77,38 @@ export const useSeatsStore = defineStore('seats', {
       this._wired = true
     },
 
-    /* Exponer públicamente el wiring */
-    ensureWired() {
+    /* ===== Carga/boot público y único =====
+       - Garantiza wiring + palcos + mapa inicial.
+       - Idempotente (se puede llamar desde varios componentes sin problemas). */
+    async ensureLoaded() {
       this._ensureWired()
+
+      if (!this.palcos.length) {
+        await this.fetchPalcos().catch(() => {})
+      }
+      if (!this.mapa) {
+        await this.fetchMapa(this.currentPalcoId).catch(() => {})
+      } else {
+        // Asegurar que el status local refleje el global actual
+        this._rebuildStatusFromPeople(usePeopleStore().list)
+      }
+
+      this._loadedOnce = true
     },
 
     _rebuildStatusFromPeople(list) {
       // Construir mapa GLOBAL: asiento -> estado
       const nextAll = {}
       for (const p of list || []) {
-        if (!p?.seat) continue
-        nextAll[p.seat] = p.present ? 'present' : 'assigned'
+        const code = p?.seat ?? p?.seatCode ?? p?.seat_code
+        if (!code) continue
+        nextAll[code] = p.present ? 'present' : 'assigned'
       }
 
       // Reemplazo inmutable para disparar reactividad
       this.statusAll = { ...nextAll }
 
-      // Si hay mapa cargado, reflejar subset en mapa.status (opcional)
+      // Si hay mapa cargado, reflejar subset en mapa.status (opcional pero útil en SeatPickerDialog)
       if (this.mapa?.seats) {
         const local = {}
         this.mapa.seats.flat().forEach(code => {

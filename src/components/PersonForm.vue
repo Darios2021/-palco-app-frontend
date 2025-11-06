@@ -210,7 +210,6 @@ import { useSeatsStore } from '../stores'
 import api from '../services/api'
 
 /* ===================== PROPS / EMITS ===================== */
-/* ACEPTA person + mode="edit" (o infiere por person.id) */
 const props = defineProps({
   person: { type: Object, default: null },
   mode: { type: String, default: 'create' } // 'create' | 'edit'
@@ -288,14 +287,19 @@ const nameError = computed(() => {
   return !form.name || String(form.name).trim().length < 3
 })
 
-/* ===================== MAPEO DE FILAS POR PALCO ===================== */
+/* ===================== MAPEO DE FILAS Y CUPOS ===================== */
+/* 1: Principal (A-F, 10) | 2: A Derecha (G-I, 4) | 3: B Izquierda (J-L, 4) */
 function rowsForPalco(id) {
-  if (id === 1) return ['A','B','C','D','E','F','G']
-  if (id === 2) return ['H','I','J','K','L']
-  if (id === 3) return ['M','N','O','P','Q']
-  return ['A','B','C','D']
+  if (id === 1) return ['A','B','C','D','E','F']
+  if (id === 2) return ['G','H','I']
+  if (id === 3) return ['J','K','L']
+  return []
 }
-const COLS = 12
+function colsForRow(letter) {
+  if ('ABCDEF'.includes(letter)) return 10
+  if ('GHIJKL'.includes(letter)) return 4
+  return 0
+}
 
 /* ===================== STATUS DE ASIENTO ===================== */
 function seatStatusFromStore(code) {
@@ -324,7 +328,10 @@ const seatOptions = computed(() => {
   if (!palcoId) return []
   const rows = rowsForPalco(palcoId)
   const codes = []
-  for (const r of rows) for (let i = 1; i <= COLS; i++) codes.push(`${r}${i}`)
+  for (const r of rows) {
+    const count = colsForRow(r)
+    for (let i = 1; i <= count; i++) codes.push(`${r}${i}`)
+  }
   return codes.map(code => {
     const st = seatStatusFromStore(code)
     return { code, status: st, title: code, value: code }
@@ -348,9 +355,9 @@ watch(
     triedSubmit.value = false
     if (p && p.seat) {
       const firstLetter = String(p.seat).charAt(0).toUpperCase()
-      if ('ABCDEFG'.includes(firstLetter)) selectedPalcoId.value = 1
-      else if ('HIJKL'.includes(firstLetter)) selectedPalcoId.value = 2
-      else if ('MNOPQ'.includes(firstLetter)) selectedPalcoId.value = 3
+      if ('ABCDEF'.includes(firstLetter)) selectedPalcoId.value = 1
+      else if ('GHI'.includes(firstLetter)) selectedPalcoId.value = 2
+      else if ('JKL'.includes(firstLetter)) selectedPalcoId.value = 3
     }
   },
   { immediate: true }
