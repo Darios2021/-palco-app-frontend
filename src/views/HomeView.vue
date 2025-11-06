@@ -10,7 +10,7 @@
               <div class="flex-grow-1">
                 <div class="hero-kicker mb-2">Sistema de Control de Asistencia</div>
                 <h1 class="hero-title text-h5 text-md-h4 mb-3">
-                  Gestión ágil de ingreso al <span class="accent">Palco Oficial</span>
+                  Gestión ágil de ingreso al <span class="accent">Palco Oficial PFA</span>
                 </h1>
                 <p class="hero-sub text-body-1 text-medium-emphasis mb-6">
                   Registrá presentes, visualizá la ocupación de asientos y asigná lugares en segundos.
