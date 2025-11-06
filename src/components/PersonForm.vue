@@ -1,3 +1,4 @@
+<!-- src/components/PersonForm.vue -->
 <template>
   <v-card class="card-contrast" rounded="xl">
     <!-- ===== HEADER ===== -->
@@ -9,12 +10,7 @@
 
       <v-spacer />
 
-      <v-chip
-        v-if="isEdit && personSeat"
-        size="small"
-        color="success"
-        label
-      >
+      <v-chip v-if="isEdit && personSeat" size="small" color="success" label>
         {{ personSeat }}
       </v-chip>
     </v-card-title>
@@ -41,22 +37,20 @@
             />
           </v-col>
 
-          <!-- DNI -->
+          <!-- CARGO -->
           <v-col cols="12" sm="6" md="3">
             <v-text-field
-              v-model.trim="form.doc"
-              label="Documento"
-              placeholder="DNI"
+              v-model.trim="form.cargo"
+              label="Cargo"
+              placeholder="Jerarquía / Cargo (opcional)"
               clearable
-              :rules="docRules"
-              inputmode="numeric"
               class="field-contrast"
-              prepend-inner-icon="mdi-card-account-details"
+              prepend-inner-icon="mdi-briefcase"
               hide-details="auto"
             />
           </v-col>
 
-          <!-- ORG -->
+          <!-- ORGANISMO -->
           <v-col cols="12" sm="6" md="3">
             <v-text-field
               v-model.trim="form.org"
@@ -85,7 +79,6 @@
               :disabled="loadingPalcos"
               :menu-props="menuProps"
             >
-              <!-- cómo se ve lo elegido -->
               <template #selection="{ item }">
                 <span v-if="item && item.raw">{{ item.raw.name }}</span>
               </template>
@@ -138,12 +131,7 @@
           </v-col>
 
           <!-- ESTADO SOLO EN EDICIÓN -->
-          <v-col
-            v-if="isEdit"
-            cols="12"
-            md="4"
-            class="d-flex align-end"
-          >
+          <v-col v-if="isEdit" cols="12" md="4" class="d-flex align-end">
             <div class="w-100">
               <div class="text-dim mb-1">Estado actual</div>
               <div class="d-flex align-center gap-8 flex-wrap">
@@ -174,19 +162,12 @@
 
       <!-- ===== FOOTER / ACCIONES ===== -->
       <v-divider class="mt-6 mb-0" />
-
       <div class="actions-wrap">
         <div class="left">
-          <v-btn
-            variant="text"
-            class="btn-text ml-0 mt-2 mt-md-0"
-            @click="onReset"
-            :disabled="loading"
-          >
-            Limpiar
+          <v-btn variant="text" class="btn-text ml-0 mt-2 mt-md-0" @click="$emit('cancel')" :disabled="loading">
+            Cancelar
           </v-btn>
         </div>
-
         <div class="right">
           <v-btn
             type="submit"
@@ -229,25 +210,23 @@ import { useSeatsStore } from '../stores'
 import api from '../services/api'
 
 /* ===================== PROPS / EMITS ===================== */
+/* ACEPTA person + mode="edit" (o infiere por person.id) */
 const props = defineProps({
-  modelValue: { type: Object, default: null }
+  person: { type: Object, default: null },
+  mode: { type: String, default: 'create' } // 'create' | 'edit'
 })
-const emit = defineEmits(['saved','update:modelValue'])
+const emit = defineEmits(['saved','cancel'])
 
 /* ===================== UI STATE ===================== */
 const { smAndDown } = useDisplay()
 const formRef = ref(null)
-const loading = ref(false)         // submit
-const loadingPalcos = ref(false)   // cargando lista de palcos
-const loadingPeople = ref(false)   // cargando lista de personas/store
+const loading = ref(false)
+const loadingPalcos = ref(false)
+const loadingPeople = ref(false)
 const triedSubmit = ref(false)
 
 /* snackbar / toast */
-const snackbar = reactive({
-  show: false,
-  text: '',
-  ok: true
-})
+const snackbar = reactive({ show:false, text:'', ok:true })
 function showToast (text, ok = true) {
   snackbar.text = text
   snackbar.ok = ok
@@ -273,17 +252,13 @@ async function ensurePeopleLoaded () {
 /* ===================== PALCOS ===================== */
 const palcos = ref([])
 const selectedPalcoId = ref(null)
-
 const palcoItems = computed(() => palcos.value)
 
-/* traemos palcos del backend */
 async function fetchPalcos() {
   loadingPalcos.value = true
   try {
     const res = await api.get('/palcos')
     palcos.value = Array.isArray(res.data) ? res.data : []
-
-    // si no hay palco elegido todavía, agarramos el primero
     if (!selectedPalcoId.value && palcos.value.length > 0) {
       selectedPalcoId.value = palcos.value[0].id
     }
@@ -296,56 +271,39 @@ async function fetchPalcos() {
 }
 
 /* ===================== FORM MODEL ===================== */
-const empty = {
-  name: '',
-  doc: '',
-  org: '',
-  seat: null,
-}
+const empty = { name:'', cargo:'', org:'', seat:null }
 const form = reactive({ ...empty })
 
-const isEdit = computed(() => !!props.modelValue?.id)
-const personSeat = computed(() => props.modelValue?.seat ?? null)
-const personPresent = computed(() => !!props.modelValue?.present)
+const isEdit = computed(() => props.mode === 'edit' || !!props.person?.id)
+const personSeat = computed(() => props.person?.seat ?? null)
+const personPresent = computed(() => !!props.person?.present)
 
 /* ===================== VALIDACIÓN ===================== */
 const nameRules = [
   v => !!(v && String(v).trim()) || 'Requerido',
   v => String(v || '').trim().length >= 3 || 'Mínimo 3 caracteres'
 ]
-const docRules = [
-  v => !v || /^[0-9.\- ]{6,}$/.test(v) || 'Formato inválido'
-]
-
 const nameError = computed(() => {
   if (!triedSubmit.value) return false
   return !form.name || String(form.name).trim().length < 3
 })
 
 /* ===================== MAPEO DE FILAS POR PALCO ===================== */
-/*
-   Palco 1 (Principal): A-G
-   Palco 2 (A):        H-L
-   Palco 3 (B):        M-Q
-   Siempre 12 columnas (1..12)
-*/
 function rowsForPalco(id) {
   if (id === 1) return ['A','B','C','D','E','F','G']
   if (id === 2) return ['H','I','J','K','L']
   if (id === 3) return ['M','N','O','P','Q']
-  // fallback por si aparece otro
   return ['A','B','C','D']
 }
 const COLS = 12
 
-/* ===================== STATUS DE ASIENTO (usa store.people) ===================== */
+/* ===================== STATUS DE ASIENTO ===================== */
 function seatStatusFromStore(code) {
   if (!code) return 'free'
   const p = (store.people || []).find(p => p.seat === code)
   if (!p) return 'free'
   return p.present ? 'present' : 'assigned'
 }
-
 function statusLabel (st) {
   if (st === 'present')  return 'Presente'
   if (st === 'assigned') return 'Asignado'
@@ -360,59 +318,36 @@ function statusVariant (st) {
   return st === 'free' ? 'outlined' : 'flat'
 }
 
-/* construimos TODAS las butacas posibles según palcoId seleccionado */
+/* ===================== OPCIONES DE ASIENTOS ===================== */
 const seatOptions = computed(() => {
   const palcoId = selectedPalcoId.value
   if (!palcoId) return []
-
   const rows = rowsForPalco(palcoId)
-
-  // genera ['A1','A2',...,'A12','B1','B2',...]
   const codes = []
-  for (const r of rows) {
-    for (let i = 1; i <= COLS; i++) {
-      codes.push(`${r}${i}`)
-    }
-  }
-
+  for (const r of rows) for (let i = 1; i <= COLS; i++) codes.push(`${r}${i}`)
   return codes.map(code => {
     const st = seatStatusFromStore(code)
-    return {
-      code,
-      status: st,
-      title: code,
-      value: code,
-    }
+    return { code, status: st, title: code, value: code }
   })
 })
 
-/* menú props (responsive height) */
+/* menú props (responsive) */
 const menuProps = computed(() => ({
   maxHeight: smAndDown.value ? 260 : 360,
   offset: smAndDown.value ? 6 : 8
 }))
 
-/* cuando cambio de PALCO, limpio el asiento elegido */
-watch(selectedPalcoId, () => {
-  form.seat = null
-})
+/* al cambiar de PALCO, limpio asiento elegido */
+watch(selectedPalcoId, () => { form.seat = null })
 
-/* ===================== SYNC EXTERNO -> FORM ===================== */
+/* ===================== SYNC PROPS -> FORM ===================== */
 watch(
-  () => props.modelValue,
-  (v) => {
-    Object.assign(
-      form,
-      v
-        ? { ...empty, ...v, seat: v.seat ?? null }
-        : { ...empty }
-    )
+  () => props.person,
+  (p) => {
+    Object.assign(form, p ? { ...empty, ...p, seat: p.seat ?? null } : { ...empty })
     triedSubmit.value = false
-
-    // si estoy editando y la butaca actual es ej "K7",
-    // inferimos palco según la letra de la fila
-    if (v && v.seat) {
-      const firstLetter = String(v.seat).charAt(0).toUpperCase()
+    if (p && p.seat) {
+      const firstLetter = String(p.seat).charAt(0).toUpperCase()
       if ('ABCDEFG'.includes(firstLetter)) selectedPalcoId.value = 1
       else if ('HIJKL'.includes(firstLetter)) selectedPalcoId.value = 2
       else if ('MNOPQ'.includes(firstLetter)) selectedPalcoId.value = 3
@@ -427,22 +362,13 @@ function normalizePayload(payload) {
   if (out.seat === '') out.seat = null
   return out
 }
-
 async function refreshStore() {
-  if (typeof store.refresh === 'function') {
-    await store.refresh()
-  } else if (typeof store.ensureLoaded === 'function') {
-    await store.ensureLoaded()
-  }
+  if (typeof store.refresh === 'function') await store.refresh()
+  else if (typeof store.ensureLoaded === 'function') await store.ensureLoaded()
 }
-
 function safeResetForm() {
-  if (formRef.value?.reset) {
-    formRef.value.reset()
-  }
-  if (formRef.value?.resetValidation) {
-    formRef.value.resetValidation()
-  }
+  if (formRef.value?.reset) formRef.value.reset()
+  if (formRef.value?.resetValidation) formRef.value.resetValidation()
   Object.assign(form, { ...empty })
 }
 
@@ -450,42 +376,24 @@ function safeResetForm() {
 async function onSubmit() {
   triedSubmit.value = true
   loading.value = true
-
   try {
-    // validar Vuetify
     const result = await formRef.value?.validate?.()
     const valid = typeof result === 'object' ? result.valid : !!result
-    if (!valid) {
-      loading.value = false
-      return
-    }
+    if (!valid) { loading.value = false; return }
 
     const payload = normalizePayload(form)
 
     if (isEdit.value) {
-      // UPDATE
-      await store.updatePerson(props.modelValue.id, payload)
-
+      await store.updatePerson(props.person.id, payload)
       showToast('Cambios guardados.', true)
-
-      emit('update:modelValue', { ...props.modelValue, ...payload })
-      emit('saved', { id: props.modelValue.id })
+      emit('saved', { id: props.person.id })
     } else {
-      // CREATE
       const created = await store.createPerson(payload)
       const newId = created?.id ?? created ?? null
-
-      showToast(
-        newId
-          ? `Persona creada (#${newId}).`
-          : 'Persona creada correctamente.',
-        true
-      )
-
+      showToast(newId ? `Persona creada (#${newId}).` : 'Persona creada correctamente.', true)
       safeResetForm()
       await nextTick()
       triedSubmit.value = false
-
       emit('saved', { id: newId })
     }
 
@@ -498,12 +406,6 @@ async function onSubmit() {
   }
 }
 
-function onReset() {
-  safeResetForm()
-  triedSubmit.value = false
-  showToast('Formulario limpio.', true)
-}
-
 /* ===================== LIFECYCLE ===================== */
 onMounted(async () => {
   await ensurePeopleLoaded()
@@ -512,83 +414,36 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.card-contrast {
-  background: #0e1230 !important;
-  border: 1px solid rgba(255, 217, 81, .14);
-  box-shadow: 0 6px 18px rgba(0,0,0,.25);
-  color: #eaf0ff;
-}
-
-.title-contrast {
-  background: linear-gradient(180deg, rgba(255,217,81,.06), rgba(11,13,40,0));
-  border-bottom: 1px solid rgba(255,217,81,.10);
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.text-dim {
-  color: rgba(234,240,255, .78);
-}
+.card-contrast{ background:#0e1230 !important; border:1px solid rgba(255,217,81,.14); box-shadow:0 6px 18px rgba(0,0,0,.25); color:#eaf0ff; }
+.title-contrast{ background:linear-gradient(180deg, rgba(255,217,81,.06), rgba(11,13,40,0)); border-bottom:1px solid rgba(255,217,81,.10); font-weight:800; line-height:1.2; }
+.text-dim{ color:rgba(234,240,255,.78); }
 
 /* Inputs */
-.field-contrast :deep(.v-field) {
-  background: rgba(255,255,255,0.06) !important;
-  border-radius: 12px !important;
-}
-.field-contrast :deep(.v-icon) {
-  color: #ffd951 !important;
-}
+.field-contrast :deep(.v-field){ background:rgba(255,255,255,0.06) !important; border-radius:12px !important; }
+.field-contrast :deep(.v-icon){ color:#ffd951 !important; }
 
 /* Chips/tags */
-.chip-strong {
-  font-weight: 800;
-  border-radius: 10px;
-}
+.chip-strong{ font-weight:800; border-radius:10px; }
 
 /* Footer */
-.actions-wrap {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px;
-  background: linear-gradient(
-    180deg,
-    rgba(11,13,40,0),
-    rgba(11,13,40,.85) 30%,
-    rgba(11,13,40,1)
-  );
-  border-top: 1px solid rgba(255,217,81,.10);
+.actions-wrap{
+  display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:12px;
+  padding:12px 16px;
+  background:linear-gradient(180deg, rgba(11,13,40,0), rgba(11,13,40,.85) 30%, rgba(11,13,40,1));
+  border-top:1px solid rgba(255,217,81,.10);
 }
-.btn-strong {
-  font-weight: 800;
-}
-.btn-text {
-  color: #eaf0ff !important;
-  font-weight: 500;
-  letter-spacing: .03em;
-}
+.btn-strong{ font-weight:800; }
+.btn-text{ color:#eaf0ff !important; font-weight:500; letter-spacing:.03em; }
 
-/* Snackbar fuerte estilo "sistema" */
-.snackbar-strong {
-  font-weight: 600;
-  letter-spacing: .02em;
-  text-transform: none;
-  max-width: 360px;
-  border-radius: 12px !important;
-  box-shadow: 0 20px 40px rgba(0,0,0,.6);
+/* Snackbar fuerte */
+.snackbar-strong{
+  font-weight:600; letter-spacing:.02em; text-transform:none; max-width:360px;
+  border-radius:12px !important; box-shadow:0 20px 40px rgba(0,0,0,.6);
 }
 
 /* gaps */
-.g-12 {
-  row-gap: 12px;
-}
+.g-12{ row-gap:12px; }
 
 /* responsive footer */
-@media (max-width: 960px){
-  .actions-wrap{
-    position: static;
-  }
-}
+@media (max-width: 960px){ .actions-wrap{ position: static; } }
 </style>

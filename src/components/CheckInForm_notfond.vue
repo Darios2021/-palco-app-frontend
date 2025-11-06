@@ -296,64 +296,78 @@
     </div>
 
     <!-- ===== MODALES ===== -->
-    <v-dialog v-model="confirmRelease" max-width="420">
-      <v-card rounded="xl" class="modal-card">
-        <v-card-title class="pt-4 pb-0 modal-title">
-          <v-icon class="mr-2">mdi-seat-passenger</v-icon>
-          Confirmar liberación
-        </v-card-title>
-        <v-card-text class="pt-2">
-          ¿Liberar el asiento <strong>{{ selectedSeatCode }}</strong>
-          para <strong>{{ selected?.title }}</strong>?
-        </v-card-text>
-        <v-card-actions class="px-4 pb-4">
-          <v-spacer />
-          <v-btn variant="text" @click="confirmRelease = false">Cancelar</v-btn>
-          <v-btn color="warning" :loading="releasing" :disabled="releasing" @click="onReleaseSeat">
-            Liberar
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <v-dialog
+  v-model="seatPickerOpen"
+  :fullscreen="isMobile"
+  :max-width="isMobile ? undefined : 1024"
+  scrollable
+  class="seat-dialog"
+  eager
+  retain-focus="false"
+>
+  <div v-if="seatPickerOpen" class="pa-2">
+    <SeatMapPicker
+      :model-value="selectedSeatCode"
+      @update:modelValue="val => (selectedSeatCode = val)"
+      @select="onSeatPicked"
+    />
+  </div>
+</v-dialog>
 
     <v-dialog
-      v-model="seatPickerOpen"
-      :fullscreen="isMobile"
-      :max-width="isMobile ? undefined : 960"
-      scrollable
-      class="seat-dialog"
-    >
-      <SeatPickerDialog @select="onSeatPicked" />
-    </v-dialog>
+  v-model="seatPickerOpen"
+  :fullscreen="isMobile"
+  :max-width="isMobile ? undefined : 1024"
+  scrollable
+  class="seat-dialog"
+  eager
+  retain-focus="false"
+>
+  <div v-if="seatPickerOpen" class="pa-2">
+    <SeatMapPicker
+      :model-value="selectedSeatCode"
+      @update:modelValue="val => (selectedSeatCode = val)"
+      @select="onSeatPicked"
+    />
+  </div>
+</v-dialog>
 
     <v-dialog
-      v-model="createPersonOpen"
-      :fullscreen="isMobile"
-      :max-width="isMobile ? undefined : 720"
-      scrollable
-      class="create-dialog"
-    >
-      <PersonForm
-        @saved="onPersonCreated"
-        @cancel="createPersonOpen = false"
-      />
-    </v-dialog>
+  v-model="seatPickerOpen"
+  :fullscreen="isMobile"
+  :max-width="isMobile ? undefined : 1024"
+  scrollable
+  class="seat-dialog"
+  eager
+  retain-focus="false"
+>
+  <div v-if="seatPickerOpen" class="pa-2">
+    <SeatMapPicker
+      :model-value="selectedSeatCode"
+      @update:modelValue="val => (selectedSeatCode = val)"
+      @select="onSeatPicked"
+    />
+  </div>
+</v-dialog>
 
     <!-- MODAL EDITAR -->
     <v-dialog
-      v-model="editPersonOpen"
-      :fullscreen="isMobile"
-      :max-width="isMobile ? undefined : 720"
-      scrollable
-      class="create-dialog"
-    >
-      <PersonEditForm
-        :key="editablePerson?.id || 'edit'"
-        :person="editablePerson"
-        @saved="onPersonEdited"
-        @cancel="editPersonOpen = false"
-      />
-    </v-dialog>
+  v-model="seatPickerOpen"
+  :fullscreen="isMobile"
+  :max-width="isMobile ? undefined : 1024"
+  scrollable
+  class="seat-dialog"
+  eager
+  retain-focus="false"
+>
+  <div v-if="seatPickerOpen" class="pa-2">
+    <SeatMapPicker
+      :model-value="selectedSeatCode"
+      @update:modelValue="val => (selectedSeatCode = val)"
+      @select="onSeatPicked"
+    />
+  </div>
+</v-dialog>
 
     <v-snackbar
       v-model="snackbar.show"
